@@ -1,41 +1,54 @@
-#include "esp_chip_info.h"
-#include "esp_flash.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "sdkconfig.h"
+#include <aht.h>
+#include <esp_err.h>
+#include <esp_log.h>
+#include <esp_system.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <stdio.h>
+#include <string.h>
+
+#define ADDR     AHT_I2C_ADDRESS_GND
+#define AHT_TYPE AHT_TYPE_AHT20
+
+#ifndef APP_CPU_NUM
+#define APP_CPU_NUM PRO_CPU_NUM
+#endif
+
+static const char *TAG = "aht-example";
+
+void task(void *pvParameters)
+{
+    aht_t dev = {0};
+    dev.mode = AHT_MODE_NORMAL;
+    dev.type = AHT_TYPE;
+
+    ESP_ERROR_CHECK(aht_init_desc(&dev, ADDR, 0, 9, 10));
+    ESP_ERROR_CHECK(aht_init(&dev));
+
+    bool calibrated;
+    ESP_ERROR_CHECK(aht_get_status(&dev, NULL, &calibrated));
+    if (calibrated)
+        ESP_LOGI(TAG, "Sensor calibrated");
+    else
+        ESP_LOGW(TAG, "Sensor not calibrated!");
+
+    float temperature, humidity;
+
+    while (1)
+    {
+        esp_err_t res = aht_get_data(&dev, &temperature, &humidity);
+        if (res == ESP_OK)
+            ESP_LOGI(TAG, "Temperature: %.1f°C, Humidity: %.2f%%", temperature, humidity);
+        else
+            ESP_LOGE(TAG, "Error reading data: %d (%s)", res, esp_err_to_name(res));
+
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
 
 void app_main(void)
 {
     printf("Hello world!\n");
-
-    /* Print chip information */
-    esp_chip_info_t chip_info;
-    uint32_t flash_size;
-    esp_chip_info(&chip_info);
-    printf("This is %s chip with %d CPU core(s), WiFi%s%s, ", CONFIG_IDF_TARGET, chip_info.cores,
-           (chip_info.features & CHIP_FEATURE_BT) ? "/BT" : "", (chip_info.features & CHIP_FEATURE_BLE) ? "/BLE" : "");
-
-    unsigned major_rev = chip_info.revision / 100;
-    unsigned minor_rev = chip_info.revision % 100;
-    printf("silicon revision v%d.%d, ", major_rev, minor_rev);
-    if (esp_flash_get_size(NULL, &flash_size) != ESP_OK)
-    {
-        printf("Get flash size failed");
-        return;
-    }
-
-    printf("%luMB %s flash\n", flash_size / (1024 * 1024),
-           (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
-
-    printf("Minimum free heap size: %lu bytes\n", esp_get_minimum_free_heap_size());
-
-    for (int i = 10; i >= 0; i--)
-    {
-        printf("Restarting in %d seconds...\n", i);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-    printf("Restarting now.\n");
-    fflush(stdout);
-    esp_restart();
+    ESP_ERROR_CHECK(i2cdev_init());
+    xTaskCreatePinnedToCore(task, TAG, configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 }
