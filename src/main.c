@@ -7,6 +7,7 @@
 #include <string.h>
 
 // sensor drivers
+#include "grove_water_level_sensor.h"
 #include <aht.h>
 #include <bme680.h>
 #include <bmp280.h>
@@ -162,12 +163,36 @@ void tsl2591_task(void *pvParameters)
     }
 }
 
+void grove_water_level_sensor_task(void *pvParameters)
+{
+    static const char *TAG = "GroveWaterLevelSensor";
+
+    grove_water_level_sensor_t sensor;
+    memset(&sensor, 0, sizeof(grove_water_level_sensor_t));
+
+    ESP_ERROR_CHECK(grove_water_level_sensor_init_desc(&sensor, 0, HYDRO_PINOUT_I2C0_SDA, HYDRO_PINOUT_I2C0_SCL));
+    ESP_ERROR_CHECK(grove_water_level_sensor_init(&sensor));
+
+    while (1)
+    {
+        if (grove_water_level_sensor_get_water_level(&sensor) == ESP_OK)
+            ESP_LOGI(TAG, "Water level: %d", sensor.water_level);
+        else
+            ESP_LOGE(TAG, "Error reading water level");
+
+        vTaskDelay(pdMS_TO_TICKS(5000));
+    }
+}
+
 void app_main(void)
 {
     printf("Hello world!\n");
     ESP_ERROR_CHECK(i2cdev_init());
     xTaskCreatePinnedToCore(aht_task, "ath-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(bme280_task, "bme280-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    // xTaskCreatePinnedToCore(bme280_task, "bme280-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    // //TODO: grove water level sensor and bme280 are using the same I2C bus
     xTaskCreatePinnedToCore(bme680_task, "bme680-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
     xTaskCreatePinnedToCore(tsl2591_task, "tsl2591-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(grove_water_level_sensor_task, "grove-water-level-sensor-example",
+                            configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 }
