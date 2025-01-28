@@ -7,6 +7,7 @@
 #include <string.h>
 
 // sensor drivers
+#include "driver\gpio.h"
 #include "grove_water_level_sensor.h"
 #include <aht.h>
 #include <bme680.h>
@@ -184,6 +185,23 @@ void grove_water_level_sensor_task(void *pvParameters)
     }
 }
 
+void gpio_task(void *pvParameters)
+{
+
+    static const char *TAG = "GPIO";
+    gpio_set_direction(HYDRO_PINOUT_PUMP, GPIO_MODE_OUTPUT);
+
+    ESP_LOGI(TAG, "Pump is running");
+
+    while (1)
+    {
+        gpio_set_level(HYDRO_PINOUT_PUMP, 1);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        gpio_set_level(HYDRO_PINOUT_PUMP, 0);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+    }
+}
+
 void app_main(void)
 {
     printf("Hello world!\n");
@@ -195,4 +213,5 @@ void app_main(void)
     xTaskCreatePinnedToCore(tsl2591_task, "tsl2591-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
     xTaskCreatePinnedToCore(grove_water_level_sensor_task, "grove-water-level-sensor-example",
                             configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(gpio_task, "gpio-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 }

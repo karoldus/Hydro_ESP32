@@ -7,4 +7,6 @@
 #define HYDRO_PINOUT_I2C1_SDA (11)
 #define HYDRO_PINOUT_I2C1_SCL (12)
 
+#define HYDRO_PINOUT_PUMP (38)
+
 #endif // __HYDRO_PINOUT_H__
