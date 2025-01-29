@@ -1,7 +1,6 @@
 /*
 NOTE: grove water level sensor and bme280 are using the same I2C address, so only one of them can be used at a time
 TODO:
-- Add mutexes to sensors (especially BME680, because reading data takes a long time)
 - Pressure from BME680 is always 0, check if it's a sensor issue or code issue
 */
 
@@ -101,9 +100,9 @@ void bme680_task(void *pvParameters)
 {
     static const char *TAG = "BME680";
 
-    vTaskDelay(pdMS_TO_TICKS(2000));
+    // vTaskDelay(pdMS_TO_TICKS(2000));
 
-    bme680_t sensor = sensors[1].sensor_obj.bme680;
+    // bme680_t sensor = sensors[1].sensor_obj.bme680;
     // memset(&sensor, 0, sizeof(bme680_t));
 
     // ESP_ERROR_CHECK(bme680_init_desc(&sensor, BME680_I2C_ADDR_0, 0, HYDRO_PINOUT_I2C0_SDA, HYDRO_PINOUT_I2C0_SCL));
@@ -126,25 +125,36 @@ void bme680_task(void *pvParameters)
     // bme680_set_ambient_temperature(&sensor, 10);
 
     // as long as sensor configuration isn't changed, duration is constant
-    uint32_t duration;
-    bme680_get_measurement_duration(&sensor, &duration);
+    // uint32_t duration;
+    // bme680_get_measurement_duration(&sensor, &duration);
 
     TickType_t last_wakeup = xTaskGetTickCount();
 
-    bme680_values_float_t values;
+    // bme680_values_float_t values;
+    hydro_data_t values;
+    esp_err_t err;
     while (1)
     {
-        // trigger the sensor to start one TPHG measurement cycle
-        if (bme680_force_measurement(&sensor) == ESP_OK)
+        err = read_sensor(TAG, &sensors[1], &values);
+        if (err != ESP_OK)
+            ESP_LOGE(TAG, "Error reading sensor: %d", err);
+        else
         {
-            // passive waiting until measurement results are available
-            vTaskDelay(duration);
-
-            // get the results and do something with them
-            if (bme680_get_results_float(&sensor, &values) == ESP_OK)
-                ESP_LOGI(TAG, "Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm", values.temperature, values.humidity,
-                         values.pressure, values.gas_resistance);
+            ESP_LOGI(TAG, "Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm", values.data.temp_hum_press_gas.temperature_c,
+                     values.data.temp_hum_press_gas.humidity, values.data.temp_hum_press_gas.pressure_pa,
+                     values.data.temp_hum_press_gas.gas_resistance_ohm);
         }
+        // // trigger the sensor to start one TPHG measurement cycle
+        // if (bme680_force_measurement(&sensor) == ESP_OK)
+        // {
+        //     // passive waiting until measurement results are available
+        //     vTaskDelay(duration);
+
+        //     // get the results and do something with them
+        //     if (bme680_get_results_float(&sensor, &values) == ESP_OK)
+        //         ESP_LOGI(TAG, "Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm", values.temperature, values.humidity,
+        //                  values.pressure, values.gas_resistance);
+        // }
         // passive waiting until 5 seconds is over
         vTaskDelayUntil(&last_wakeup, pdMS_TO_TICKS(5000));
     }

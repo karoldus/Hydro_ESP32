@@ -38,6 +38,7 @@ typedef struct
 
         // Add other interfaces here eg. SPI, analog, etc.
     } interface;
+    SemaphoreHandle_t sensor_mutex;
 } hydro_sensor_t;
 
 // =========== SENSOR DATA ===========

@@ -15,6 +15,8 @@ TODO : change ESP_ERROR_CHECK to something else to avoid aborting the program
 
 #include "hydro_pinout.h"
 
+#define WAIT_FOR_SENSOR_AVAILABILITY_TIMEOUT_MS (5000)
+
 //==================================
 //========= SENSORS INIT ===========
 //==================================
@@ -27,6 +29,21 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
         hydro_sensor_t *sensor = &sensors[i];
         gpio_num_t sda;
         gpio_num_t scl;
+
+        sensor->sensor_mutex = xSemaphoreCreateMutex();
+        if (sensor->sensor_mutex == NULL)
+        {
+            ESP_LOGE(TAG, "Error creating sensor mutex");
+            return ESP_ERR_NO_MEM;
+        }
+
+        // take mutex with no timeout
+        if (xSemaphoreTake(sensor->sensor_mutex, (TickType_t)0) != pdTRUE)
+        {
+            ESP_LOGE(TAG, "Error taking sensor mutex");
+            return ESP_ERR_TIMEOUT;
+        }
+
         switch (sensor->model)
         {
         case SENSOR_MODEL_AHT20:
@@ -91,9 +108,14 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
             break;
         default:
             ESP_LOGE("init_all_sensors", "Unknown sensor model: %d", sensor->model);
+            // delete mutex
+            vSemaphoreDelete(sensor->sensor_mutex);
             return ESP_ERR_NOT_SUPPORTED;
         }
+        // give mutex
+        xSemaphoreGive(sensor->sensor_mutex);
     }
+
     return ESP_OK;
 }
 
@@ -104,39 +126,61 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
 esp_err_t read_sensor(const char *TAG, hydro_sensor_t *sensor, hydro_data_t *output_data)
 {
     esp_err_t err;
+
+    ESP_LOGD(TAG, "Reading sensor %d - taking mutex", sensor->model);
+
+    // take mutex with timeout WAIT_FOR_SENSOR_AVAILABILITY_TIMEOUT_MS
+    if (xSemaphoreTake(sensor->sensor_mutex, pdMS_TO_TICKS(WAIT_FOR_SENSOR_AVAILABILITY_TIMEOUT_MS)) != pdTRUE)
+    {
+        ESP_LOGE(TAG, "Error taking sensor mutex");
+        return ESP_ERR_TIMEOUT;
+    }
+
+    ESP_LOGD(TAG, "Reading sensor %d", sensor->model);
+
     switch (sensor->model)
     {
     case SENSOR_MODEL_AHT20:
         output_data->type = HYDRO_DATA_TYPE_TEMP_HUM;
-        return aht_get_data(&sensor->sensor_obj.aht, &output_data->data.temp_hum.temperature_c,
-                            &output_data->data.temp_hum.humidity);
+        err = aht_get_data(&sensor->sensor_obj.aht, &output_data->data.temp_hum.temperature_c,
+                           &output_data->data.temp_hum.humidity);
+        break;
     case SENSOR_MODEL_BME280:
         output_data->type = HYDRO_DATA_TYPE_TEMP_HUM_PRESS;
-        return bmp280_read_float(&sensor->sensor_obj.bmp280, &output_data->data.temp_hum_press.temperature_c,
-                                 &output_data->data.temp_hum_press.pressure_pa,
-                                 &output_data->data.temp_hum_press.humidity);
+        err = bmp280_read_float(&sensor->sensor_obj.bmp280, &output_data->data.temp_hum_press.temperature_c,
+                                &output_data->data.temp_hum_press.pressure_pa,
+                                &output_data->data.temp_hum_press.humidity);
+        break;
     case SENSOR_MODEL_BME680:
         output_data->type = HYDRO_DATA_TYPE_TEMP_HUM_PRESS_GAS;
         bme680_values_float_t values;
         err = bme680_measure_float(&sensor->sensor_obj.bme680, &values);
-        if (err != ESP_OK) return err;
+        if (err != ESP_OK) break;
         output_data->data.temp_hum_press_gas.temperature_c = values.temperature;
         output_data->data.temp_hum_press_gas.pressure_pa = values.pressure; // TODO: hPa?
         output_data->data.temp_hum_press_gas.humidity = values.humidity;
         output_data->data.temp_hum_press_gas.gas_resistance_ohm = values.gas_resistance;
-        return ESP_OK;
+        break;
     case SENSOR_MODEL_TSL2591:
         output_data->type = HYDRO_DATA_TYPE_LUX;
-        return tsl2591_get_lux(&sensor->sensor_obj.tsl2591, &output_data->data.lux.lux);
+        err = tsl2591_get_lux(&sensor->sensor_obj.tsl2591, &output_data->data.lux.lux);
+        break;
     case SENSOR_MODEL_GROVE_WATER_LEVEL:
         output_data->type = HYDRO_DATA_TYPE_WATER_LEVEL;
         err = grove_water_level_sensor_get_water_level(
             &sensor->sensor_obj.grove_water_level); // TODO fix this function to return value
-        if (err != ESP_OK) return err;
+        if (err != ESP_OK) break;
         output_data->data.water_level.water_level = sensor->sensor_obj.grove_water_level.water_level;
-        return ESP_OK;
+        break;
     default:
         ESP_LOGE("read_sensor", "Unknown sensor model: %d", sensor->model);
-        return ESP_ERR_NOT_SUPPORTED;
+        err = ESP_ERR_NOT_SUPPORTED;
     }
+
+    // give mutex
+    xSemaphoreGive(sensor->sensor_mutex);
+
+    ESP_LOGD(TAG, "Reading sensor %d - given mutex", sensor->model);
+
+    return err;
 }
