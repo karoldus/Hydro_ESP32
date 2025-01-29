@@ -7,6 +7,7 @@
 #include <string.h>
 
 // sensor drivers
+#include "driver/ledc.h"
 #include "driver\gpio.h"
 #include "grove_water_level_sensor.h"
 #include <aht.h>
@@ -202,6 +203,53 @@ void gpio_task(void *pvParameters)
     }
 }
 
+void pwm_task(void *pvParameters)
+{
+    static const char *TAG = "PWM";
+
+    // Configure the PWM timer
+    ledc_timer_config_t ledc_timer = {.speed_mode = LEDC_LOW_SPEED_MODE,
+                                      .timer_num = LEDC_TIMER_0,
+                                      .duty_resolution = LEDC_TIMER_13_BIT,
+                                      .freq_hz = 5000,
+                                      .clk_cfg = LEDC_AUTO_CLK};
+    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+
+    // Configure the PWM channel
+    ledc_channel_config_t ledc_channel = {.speed_mode = LEDC_LOW_SPEED_MODE,
+                                          .channel = LEDC_CHANNEL_0,
+                                          .timer_sel = LEDC_TIMER_0,
+                                          .intr_type = LEDC_INTR_DISABLE,
+                                          .gpio_num = HYDRO_PINOUT_PWM,
+                                          .duty = 0,
+                                          .hpoint = 0};
+    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+
+    int duty = 0;
+    int direction = 1;
+
+    while (1)
+    {
+        ESP_LOGI(TAG, "Setting PWM duty to %d", duty);
+        ESP_ERROR_CHECK(ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, duty));
+        ESP_ERROR_CHECK(ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel));
+
+        duty += direction * 2000;
+        if (duty >= 8191)
+        {
+            direction = -direction;
+            duty = 8191;
+        }
+        else if (duty <= 0)
+        {
+            direction = -direction;
+            duty = 0;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 void app_main(void)
 {
     printf("Hello world!\n");
@@ -214,4 +262,5 @@ void app_main(void)
     xTaskCreatePinnedToCore(grove_water_level_sensor_task, "grove-water-level-sensor-example",
                             configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
     xTaskCreatePinnedToCore(gpio_task, "gpio-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(pwm_task, "pwm-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 }

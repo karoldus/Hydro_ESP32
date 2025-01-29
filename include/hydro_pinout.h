@@ -9,4 +9,6 @@
 
 #define HYDRO_PINOUT_PUMP (38)
 
+#define HYDRO_PINOUT_PWM (1)
+
 #endif // __HYDRO_PINOUT_H__
