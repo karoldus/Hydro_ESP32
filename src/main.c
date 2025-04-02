@@ -180,26 +180,103 @@ void bme680_task(void *pvParameters)
     }
 }
 
-void gpio_task(void *pvParameters)
+// void gpio_task(void *pvParameters)
+// {
+
+//     static const char *TAG = "GPIO";
+//     gpio_set_direction(HYDRO_PINOUT_PUMP, GPIO_MODE_OUTPUT);
+
+//     ESP_LOGI(TAG, "Pump is running");
+
+//     while (1)
+//     {
+//         gpio_set_level(HYDRO_PINOUT_PUMP, 1);
+//         vTaskDelay(pdMS_TO_TICKS(2000));
+//         gpio_set_level(HYDRO_PINOUT_PUMP, 0);
+//         vTaskDelay(pdMS_TO_TICKS(2000));
+//     }
+// }
+
+// void pwm_task(void *pvParameters)
+// {
+//     static const char *TAG = "PWM";
+
+//     // Configure the PWM timer
+//     ledc_timer_config_t ledc_timer = {.speed_mode = LEDC_LOW_SPEED_MODE,
+//                                       .timer_num = LEDC_TIMER_0,
+//                                       .duty_resolution = LEDC_TIMER_13_BIT,
+//                                       .freq_hz = 5000,
+//                                       .clk_cfg = LEDC_AUTO_CLK};
+//     ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+
+//     // Configure the PWM channel
+//     ledc_channel_config_t ledc_channel = {.speed_mode = LEDC_LOW_SPEED_MODE,
+//                                           .channel = LEDC_CHANNEL_0,
+//                                           .timer_sel = LEDC_TIMER_0,
+//                                           .intr_type = LEDC_INTR_DISABLE,
+//                                           .gpio_num = HYDRO_PINOUT_PWM,
+//                                           .duty = 0,
+//                                           .hpoint = 0};
+//     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
+
+//     int duty = 0;
+//     int direction = 1;
+
+//     while (1)
+//     {
+//         ESP_LOGI(TAG, "Setting PWM duty to %d", duty);
+//         ESP_ERROR_CHECK(ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, duty));
+//         ESP_ERROR_CHECK(ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel));
+
+//         duty += direction * 2000;
+//         if (duty >= 8191)
+//         {
+//             direction = -direction;
+//             duty = 8191;
+//         }
+//         else if (duty <= 0)
+//         {
+//             direction = -direction;
+//             duty = 0;
+//         }
+
+//         vTaskDelay(pdMS_TO_TICKS(1000));
+//     }
+// }
+
+bool pump_slow_start(ledc_channel_config_t *ledc_channel)
 {
-
-    static const char *TAG = "GPIO";
-    gpio_set_direction(HYDRO_PINOUT_PUMP, GPIO_MODE_OUTPUT);
-
-    ESP_LOGI(TAG, "Pump is running");
-
-    while (1)
+    for (int i = 0; i < 8191; i += 1000)
     {
-        gpio_set_level(HYDRO_PINOUT_PUMP, 1);
-        vTaskDelay(pdMS_TO_TICKS(2000));
-        gpio_set_level(HYDRO_PINOUT_PUMP, 0);
-        vTaskDelay(pdMS_TO_TICKS(2000));
+        if (i > 8191) i = 8191;
+
+        // TODO: lepsza obsługa błędów
+        ESP_ERROR_CHECK(ledc_set_duty(ledc_channel->speed_mode, ledc_channel->channel, i));
+        ESP_ERROR_CHECK(ledc_update_duty(ledc_channel->speed_mode, ledc_channel->channel));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
+
+    return true;
 }
 
-void pwm_task(void *pvParameters)
+bool pump_slow_stop(ledc_channel_config_t *ledc_channel)
 {
-    static const char *TAG = "PWM";
+    for (int i = 8191; i >= 0; i -= 1000)
+    {
+        if (i < 0) i = 0;
+
+        // TODO: better error handling
+        ESP_ERROR_CHECK(ledc_set_duty(ledc_channel->speed_mode, ledc_channel->channel, i));
+        ESP_ERROR_CHECK(ledc_update_duty(ledc_channel->speed_mode, ledc_channel->channel));
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+
+    return true;
+}
+
+void pump_task(void *pvParameters)
+{
+    static const char *TAG = "PUMP TASK";
 
     // Configure the PWM timer
     ledc_timer_config_t ledc_timer = {.speed_mode = LEDC_LOW_SPEED_MODE,
@@ -214,66 +291,32 @@ void pwm_task(void *pvParameters)
                                           .channel = LEDC_CHANNEL_0,
                                           .timer_sel = LEDC_TIMER_0,
                                           .intr_type = LEDC_INTR_DISABLE,
-                                          .gpio_num = HYDRO_PINOUT_PWM,
+                                          .gpio_num = HYDRO_PINOUT_PUMP_PWM,
                                           .duty = 0,
                                           .hpoint = 0};
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
-    int duty = 0;
-    int direction = 1;
+    bool state = false;
+
+    vTaskDelay(pdMS_TO_TICKS(5000));
 
     while (1)
     {
-        ESP_LOGI(TAG, "Setting PWM duty to %d", duty);
-        ESP_ERROR_CHECK(ledc_set_duty(ledc_channel.speed_mode, ledc_channel.channel, duty));
-        ESP_ERROR_CHECK(ledc_update_duty(ledc_channel.speed_mode, ledc_channel.channel));
-
-        duty += direction * 2000;
-        if (duty >= 8191)
-        {
-            direction = -direction;
-            duty = 8191;
-        }
-        else if (duty <= 0)
-        {
-            direction = -direction;
-            duty = 0;
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        ESP_LOGI(TAG, "Starting pump slow start");
+        pump_slow_start(&ledc_channel);
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        ESP_LOGI(TAG, "Stopping pump slow stop");
+        pump_slow_stop(&ledc_channel);
+        vTaskDelay(pdMS_TO_TICKS(15000));
     }
 }
 
-void app_main(void)
+void sensors_task(void *pvParameters)
 {
-    static const char *TAG = "MAIN";
-    esp_err_t err;
-
-    ESP_ERROR_CHECK(i2cdev_init());
-
-    printf("Hello world!\n");
-    // ESP_ERROR_CHECK(i2cdev_init());
-    // xTaskCreatePinnedToCore(aht_task, "ath-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
-    // // xTaskCreatePinnedToCore(bme280_task, "bme280-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL,
-    // APP_CPU_NUM);
-    // // //
-
-    // xTaskCreatePinnedToCore(tsl2591_task, "tsl2591-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL,
-    // APP_CPU_NUM); xTaskCreatePinnedToCore(grove_water_level_sensor_task, "grove-water-level-sensor-example",
-    //                         configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
-    // xTaskCreatePinnedToCore(gpio_task, "gpio-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
-    // xTaskCreatePinnedToCore(pwm_task, "pwm-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
-
-    err = init_all_sensors(TAG, sensors, sizeof(sensors) / sizeof(hydro_sensor_t));
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Error initializing sensors: %d", err);
-        return;
-    }
-
-    // xTaskCreatePinnedToCore(bme680_task, "bme680-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    static const char *TAG = "SENSORS TASK";
 
     hydro_data_t data;
+    esp_err_t err;
 
     while (1)
     {
@@ -311,4 +354,30 @@ void app_main(void)
 
         vTaskDelay(pdMS_TO_TICKS(5000));
     }
+}
+
+void app_main(void)
+{
+    static const char *TAG = "MAIN";
+    esp_err_t err;
+
+    ESP_ERROR_CHECK(i2cdev_init());
+
+    printf("Hello world!\n");
+
+    // xTaskCreatePinnedToCore(gpio_task, "gpio-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    // xTaskCreatePinnedToCore(pwm_task, "pwm-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+
+    err = init_all_sensors(TAG, sensors, sizeof(sensors) / sizeof(hydro_sensor_t));
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error initializing sensors: %d", err);
+        return;
+    }
+
+    xTaskCreatePinnedToCore(sensors_task, "sensors-task", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+
+    xTaskCreatePinnedToCore(pump_task, "pump-task", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+
+    // xTaskCreatePinnedToCore(bme680_task, "bme680-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 }

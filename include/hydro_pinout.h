@@ -7,8 +7,11 @@
 #define HYDRO_PINOUT_I2C1_SDA (13)
 #define HYDRO_PINOUT_I2C1_SCL (14)
 
-#define HYDRO_PINOUT_PUMP (38)
+// #define HYDRO_PINOUT_PUMP (38)
 
-#define HYDRO_PINOUT_PWM (1)
+// #define HYDRO_PINOUT_PWM (1)
+
+#define HYDRO_PINOUT_PUMP_PWM (33)
+// mosfets are 33, 34, 35
 
 #endif // __HYDRO_PINOUT_H__
