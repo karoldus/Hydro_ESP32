@@ -33,22 +33,22 @@ hydro_sensor_t sensors[] = {
                 .port = I2C_NUM_0,
             },
     },
-    // {
-    //     .model = SENSOR_MODEL_BME280,
-    //     .interface.i2c =
-    //         {
-    //             .addr = BMP280_I2C_ADDRESS_1,
-    //             .port = I2C_NUM_0,
-    //         },
-    // },
     {
-        .model = SENSOR_MODEL_BME680,
+        .model = SENSOR_MODEL_BME280,
         .interface.i2c =
             {
-                .addr = BME680_I2C_ADDR_0,
+                .addr = BMP280_I2C_ADDRESS_1,
                 .port = I2C_NUM_0,
             },
     },
+    // { // TODO: dlaczego nie działa?
+    //     .model = SENSOR_MODEL_BME680,
+    //     .interface.i2c =
+    //         {
+    //             .addr = BME680_I2C_ADDR_0,
+    //             .port = I2C_NUM_1,
+    //         },
+    // },
     {
         .model = SENSOR_MODEL_TSL2591,
         .interface.i2c =
@@ -57,12 +57,32 @@ hydro_sensor_t sensors[] = {
             },
     },
     {
-        .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
+        .model = SENSOR_MODEL_AHT20,
+        .sensor_obj.aht =
+            {
+                .type = AHT_TYPE_AHT20,
+                .mode = AHT_MODE_NORMAL,
+            },
         .interface.i2c =
             {
-                .port = I2C_NUM_0,
+                .addr = AHT_I2C_ADDRESS_GND,
+                .port = I2C_NUM_1,
             },
     },
+    {
+        .model = SENSOR_MODEL_TSL2591,
+        .interface.i2c =
+            {
+                .port = I2C_NUM_1,
+            },
+    },
+    // {
+    //     .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
+    //     .interface.i2c =
+    //         {
+    //             .port = I2C_NUM_0,
+    //         },
+    // },
 };
 
 void bme280_task(void *pvParameters)
@@ -251,7 +271,7 @@ void app_main(void)
         return;
     }
 
-    xTaskCreatePinnedToCore(bme680_task, "bme680-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+    // xTaskCreatePinnedToCore(bme680_task, "bme680-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 
     hydro_data_t data;
 
