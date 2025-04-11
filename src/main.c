@@ -363,9 +363,13 @@ void sensors_task(void *pvParameters)
             err = read_sensor(TAG, &sensors[i], &data);
             if (err != ESP_OK)
             {
-                ESP_LOGE(TAG, "Error reading sensor %d: %d", i, err);
+                ESP_LOGE(TAG, "Error reading sensor %s (%s): %d", HYDRO_SENSOR_MODEL_STR[sensors[i].model],
+                         sensors[i].description, err);
                 continue;
             }
+
+            ESP_LOGI(TAG, "Sensor %s (%s) read successfully:", HYDRO_SENSOR_MODEL_STR[sensors[i].model],
+                     sensors[i].description);
 
             switch (data.type)
             {
