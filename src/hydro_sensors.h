@@ -17,6 +17,22 @@ typedef enum
     SENSOR_MODEL_GROVE_WATER_LEVEL
 } hydro_sensor_model_t;
 
+static const char HYDRO_SENSOR_MODEL_STR[][32] = {
+    [SENSOR_MODEL_AHT20] = "AHT20",
+    [SENSOR_MODEL_BME280] = "BME280",
+    [SENSOR_MODEL_BME680] = "BME680",
+    [SENSOR_MODEL_TSL2591] = "TSL2591",
+    [SENSOR_MODEL_GROVE_WATER_LEVEL] = "GROVE_WATER_LEVEL",
+};
+
+typedef enum
+{
+    HYDRO_SENSOR_INIT_NOT_TRIED = 0,
+    HYDRO_SENSOR_INIT_SUCCESS = 1,
+    HYDRO_SENSOR_INIT_ERROR = 2,
+    HYDRO_SENSOR_INIT_NOT_SUPPORTED = 3,
+} hydro_sensor_init_status_t;
+
 typedef struct
 {
     hydro_sensor_model_t model;
@@ -39,6 +55,8 @@ typedef struct
         // Add other interfaces here eg. SPI, analog, etc.
     } interface;
     SemaphoreHandle_t sensor_mutex;
+    hydro_sensor_init_status_t init_status;
+    char description[16]; // e.g. "inside up"
 } hydro_sensor_t;
 
 // =========== SENSOR DATA ===========

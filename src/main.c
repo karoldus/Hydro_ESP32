@@ -32,6 +32,7 @@ hydro_sensor_t sensors[] = {
                 .addr = AHT_I2C_ADDRESS_GND,
                 .port = I2C_NUM_0,
             },
+        .description = "inside up",
     },
     {
         .model = SENSOR_MODEL_BME280,
@@ -40,6 +41,7 @@ hydro_sensor_t sensors[] = {
                 .addr = BMP280_I2C_ADDRESS_1,
                 .port = I2C_NUM_0,
             },
+        .description = "outside up",
     },
     // { // TODO: dlaczego nie działa?
     //     .model = SENSOR_MODEL_BME680,
@@ -48,6 +50,7 @@ hydro_sensor_t sensors[] = {
     //             .addr = BME680_I2C_ADDR_0,
     //             .port = I2C_NUM_1,
     //         },
+    //     .description = "outside down",
     // },
     {
         .model = SENSOR_MODEL_TSL2591,
@@ -55,6 +58,7 @@ hydro_sensor_t sensors[] = {
             {
                 .port = I2C_NUM_0,
             },
+        .description = "outside up",
     },
     {
         .model = SENSOR_MODEL_AHT20,
@@ -68,6 +72,7 @@ hydro_sensor_t sensors[] = {
                 .addr = AHT_I2C_ADDRESS_GND,
                 .port = I2C_NUM_1,
             },
+        .description = "inside down",
     },
     {
         .model = SENSOR_MODEL_TSL2591,
@@ -75,6 +80,7 @@ hydro_sensor_t sensors[] = {
             {
                 .port = I2C_NUM_1,
             },
+        .description = "outside down",
     },
     // {
     //     .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
@@ -85,100 +91,102 @@ hydro_sensor_t sensors[] = {
     // },
 };
 
-void bme280_task(void *pvParameters)
-{
-    static const char *TAG = "BME280";
+// void bme280_task(void *pvParameters)
+// {
+//     static const char *TAG = "BME280";
 
-    bmp280_params_t params;
-    bmp280_init_default_params(&params);
-    bmp280_t dev;
-    memset(&dev, 0, sizeof(bmp280_t));
+//     bmp280_params_t params;
+//     bmp280_init_default_params(&params);
+//     bmp280_t dev;
+//     memset(&dev, 0, sizeof(bmp280_t));
 
-    ESP_ERROR_CHECK(bmp280_init_desc(&dev, BMP280_I2C_ADDRESS_1, 0, HYDRO_PINOUT_I2C0_SDA, HYDRO_PINOUT_I2C0_SCL));
+//     ESP_ERROR_CHECK(bmp280_init_desc(&dev, BMP280_I2C_ADDRESS_1, 0, HYDRO_PINOUT_I2C0_SDA, HYDRO_PINOUT_I2C0_SCL));
 
-    ESP_ERROR_CHECK(bmp280_init(&dev, &params));
+//     ESP_ERROR_CHECK(bmp280_init(&dev, &params));
 
-    bool bme280p = dev.id == BME280_CHIP_ID;
-    ESP_LOGI(TAG, "BMP280: found %s", bme280p ? "BME280" : "BMP280");
+//     bool bme280p = dev.id == BME280_CHIP_ID;
+//     ESP_LOGI(TAG, "BMP280: found %s", bme280p ? "BME280" : "BMP280");
 
-    float pressure, temperature, humidity;
+//     float pressure, temperature, humidity;
 
-    while (1)
-    {
-        vTaskDelay(pdMS_TO_TICKS(5000));
-        if (bmp280_read_float(&dev, &temperature, &pressure, &humidity) != ESP_OK)
-        {
-            ESP_LOGE(TAG, "Temperature/pressure reading failed");
-            continue;
-        }
+//     while (1)
+//     {
+//         vTaskDelay(pdMS_TO_TICKS(5000));
+//         if (bmp280_read_float(&dev, &temperature, &pressure, &humidity) != ESP_OK)
+//         {
+//             ESP_LOGE(TAG, "Temperature/pressure reading failed");
+//             continue;
+//         }
 
-        ESP_LOGI(TAG, "Pressure: %.2f Pa, Temperature: %.2f C, Humidity: %.2f%%", pressure, temperature, humidity);
-    }
-}
+//         ESP_LOGI(TAG, "Pressure: %.2f Pa, Temperature: %.2f C, Humidity: %.2f%%", pressure, temperature, humidity);
+//     }
+// }
 
-void bme680_task(void *pvParameters)
-{
-    static const char *TAG = "BME680";
+// void bme680_task(void *pvParameters)
+// {
+//     static const char *TAG = "BME680";
 
-    // vTaskDelay(pdMS_TO_TICKS(2000));
+//     // vTaskDelay(pdMS_TO_TICKS(2000));
 
-    // bme680_t sensor = sensors[1].sensor_obj.bme680;
-    // memset(&sensor, 0, sizeof(bme680_t));
+//     // bme680_t sensor = sensors[1].sensor_obj.bme680;
+//     // memset(&sensor, 0, sizeof(bme680_t));
 
-    // ESP_ERROR_CHECK(bme680_init_desc(&sensor, BME680_I2C_ADDR_0, 0, HYDRO_PINOUT_I2C0_SDA, HYDRO_PINOUT_I2C0_SCL));
+//     // ESP_ERROR_CHECK(bme680_init_desc(&sensor, BME680_I2C_ADDR_0, 0, HYDRO_PINOUT_I2C0_SDA,
+//     HYDRO_PINOUT_I2C0_SCL));
 
-    // // init the sensor
-    // ESP_ERROR_CHECK(bme680_init_sensor(&sensor));
+//     // // init the sensor
+//     // ESP_ERROR_CHECK(bme680_init_sensor(&sensor));
 
-    // // Changes the oversampling rates to 4x oversampling for temperature
-    // // and 2x oversampling for humidity. Pressure measurement is skipped.
-    // bme680_set_oversampling_rates(&sensor, BME680_OSR_4X, BME680_OSR_NONE, BME680_OSR_2X);
+//     // // Changes the oversampling rates to 4x oversampling for temperature
+//     // // and 2x oversampling for humidity. Pressure measurement is skipped.
+//     // bme680_set_oversampling_rates(&sensor, BME680_OSR_4X, BME680_OSR_NONE, BME680_OSR_2X);
 
-    // // Change the IIR filter size for temperature and pressure to 7.
-    // bme680_set_filter_size(&sensor, BME680_IIR_SIZE_7);
+//     // // Change the IIR filter size for temperature and pressure to 7.
+//     // bme680_set_filter_size(&sensor, BME680_IIR_SIZE_7);
 
-    // // Change the heater profile 0 to 200 degree Celsius for 100 ms.
-    // bme680_set_heater_profile(&sensor, 0, 200, 100);
-    // bme680_use_heater_profile(&sensor, 0);
+//     // // Change the heater profile 0 to 200 degree Celsius for 100 ms.
+//     // bme680_set_heater_profile(&sensor, 0, 200, 100);
+//     // bme680_use_heater_profile(&sensor, 0);
 
-    // // Set ambient temperature to 10 degree Celsius
-    // bme680_set_ambient_temperature(&sensor, 10);
+//     // // Set ambient temperature to 10 degree Celsius
+//     // bme680_set_ambient_temperature(&sensor, 10);
 
-    // as long as sensor configuration isn't changed, duration is constant
-    // uint32_t duration;
-    // bme680_get_measurement_duration(&sensor, &duration);
+//     // as long as sensor configuration isn't changed, duration is constant
+//     // uint32_t duration;
+//     // bme680_get_measurement_duration(&sensor, &duration);
 
-    TickType_t last_wakeup = xTaskGetTickCount();
+//     TickType_t last_wakeup = xTaskGetTickCount();
 
-    // bme680_values_float_t values;
-    hydro_data_t values;
-    esp_err_t err;
-    while (1)
-    {
-        err = read_sensor(TAG, &sensors[1], &values);
-        if (err != ESP_OK)
-            ESP_LOGE(TAG, "Error reading sensor: %d", err);
-        else
-        {
-            ESP_LOGI(TAG, "Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm", values.data.temp_hum_press_gas.temperature_c,
-                     values.data.temp_hum_press_gas.humidity, values.data.temp_hum_press_gas.pressure_pa,
-                     values.data.temp_hum_press_gas.gas_resistance_ohm);
-        }
-        // // trigger the sensor to start one TPHG measurement cycle
-        // if (bme680_force_measurement(&sensor) == ESP_OK)
-        // {
-        //     // passive waiting until measurement results are available
-        //     vTaskDelay(duration);
+//     // bme680_values_float_t values;
+//     hydro_data_t values;
+//     esp_err_t err;
+//     while (1)
+//     {
+//         err = read_sensor(TAG, &sensors[1], &values);
+//         if (err != ESP_OK)
+//             ESP_LOGE(TAG, "Error reading sensor: %d", err);
+//         else
+//         {
+//             ESP_LOGI(TAG, "Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm",
+//             values.data.temp_hum_press_gas.temperature_c,
+//                      values.data.temp_hum_press_gas.humidity, values.data.temp_hum_press_gas.pressure_pa,
+//                      values.data.temp_hum_press_gas.gas_resistance_ohm);
+//         }
+//         // // trigger the sensor to start one TPHG measurement cycle
+//         // if (bme680_force_measurement(&sensor) == ESP_OK)
+//         // {
+//         //     // passive waiting until measurement results are available
+//         //     vTaskDelay(duration);
 
-        //     // get the results and do something with them
-        //     if (bme680_get_results_float(&sensor, &values) == ESP_OK)
-        //         ESP_LOGI(TAG, "Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm", values.temperature, values.humidity,
-        //                  values.pressure, values.gas_resistance);
-        // }
-        // passive waiting until 5 seconds is over
-        vTaskDelayUntil(&last_wakeup, pdMS_TO_TICKS(5000));
-    }
-}
+//         //     // get the results and do something with them
+//         //     if (bme680_get_results_float(&sensor, &values) == ESP_OK)
+//         //         ESP_LOGI(TAG, "Sensor: %.2f °C, %.2f %%, %.2f hPa, %.2f Ohm", values.temperature, values.humidity,
+//         //                  values.pressure, values.gas_resistance);
+//         // }
+//         // passive waiting until 5 seconds is over
+//         vTaskDelayUntil(&last_wakeup, pdMS_TO_TICKS(5000));
+//     }
+// }
 
 // void gpio_task(void *pvParameters)
 // {
@@ -246,32 +254,62 @@ void bme680_task(void *pvParameters)
 
 bool pump_slow_start(ledc_channel_config_t *ledc_channel)
 {
+    bool noerror = true;
+    esp_err_t err = ESP_OK;
+
     for (int i = 0; i < 8191; i += 1000)
     {
         if (i > 8191) i = 8191;
 
-        // TODO: lepsza obsługa błędów
-        ESP_ERROR_CHECK(ledc_set_duty(ledc_channel->speed_mode, ledc_channel->channel, i));
-        ESP_ERROR_CHECK(ledc_update_duty(ledc_channel->speed_mode, ledc_channel->channel));
+        err = ledc_set_duty(ledc_channel->speed_mode, ledc_channel->channel, i);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE("PUMP SLOW START", "Error setting duty: %d", err);
+            noerror = false;
+            break;
+        }
+
+        err = ledc_update_duty(ledc_channel->speed_mode, ledc_channel->channel);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE("PUMP SLOW START", "Error updating duty: %d", err);
+            noerror = false;
+            break;
+        }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    return true;
+    return noerror;
 }
 
 bool pump_slow_stop(ledc_channel_config_t *ledc_channel)
 {
+    bool noerror = true;
+    esp_err_t err = ESP_OK;
+
     for (int i = 8191; i >= 0; i -= 1000)
     {
         if (i < 0) i = 0;
 
-        // TODO: better error handling
-        ESP_ERROR_CHECK(ledc_set_duty(ledc_channel->speed_mode, ledc_channel->channel, i));
-        ESP_ERROR_CHECK(ledc_update_duty(ledc_channel->speed_mode, ledc_channel->channel));
+        err = ledc_set_duty(ledc_channel->speed_mode, ledc_channel->channel, i);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE("PUMP SLOW START", "Error setting duty: %d", err);
+            noerror = false;
+            break;
+        }
+
+        err = ledc_update_duty(ledc_channel->speed_mode, ledc_channel->channel);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE("PUMP SLOW START", "Error updating duty: %d", err);
+            noerror = false;
+            break;
+        }
         vTaskDelay(pdMS_TO_TICKS(100));
     }
 
-    return true;
+    return noerror;
 }
 
 void pump_task(void *pvParameters)
@@ -323,7 +361,11 @@ void sensors_task(void *pvParameters)
         for (size_t i = 0; i < sizeof(sensors) / sizeof(hydro_sensor_t); i++)
         {
             err = read_sensor(TAG, &sensors[i], &data);
-            if (err != ESP_OK) ESP_LOGE(TAG, "Error reading sensor %d: %d", i, err);
+            if (err != ESP_OK)
+            {
+                ESP_LOGE(TAG, "Error reading sensor %d: %d", i, err);
+                continue;
+            }
 
             switch (data.type)
             {
@@ -369,9 +411,13 @@ void app_main(void)
     // xTaskCreatePinnedToCore(pwm_task, "pwm-example", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 
     err = init_all_sensors(TAG, sensors, sizeof(sensors) / sizeof(hydro_sensor_t));
-    if (err != ESP_OK)
+    if (err == ESP_ERR_NOT_FINISHED)
     {
-        ESP_LOGE(TAG, "Error initializing sensors: %d", err);
+        ESP_LOGW(TAG, "Not all sensors initialized!");
+    }
+    else if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error initializing all sensors: %d", err);
         return;
     }
 

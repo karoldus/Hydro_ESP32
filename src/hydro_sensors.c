@@ -21,9 +21,26 @@ TODO : change ESP_ERROR_CHECK to something else to avoid aborting the program
 //========= SENSORS INIT ===========
 //==================================
 
+#define __CHECK_INIT_RESP_BREAKCASE(x)                                                                                 \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        err = (x);                                                                                                     \
+        if (err != ESP_OK)                                                                                             \
+        {                                                                                                              \
+            ESP_LOGE(TAG, "Error initializing %s (%s): %s", HYDRO_SENSOR_MODEL_STR[sensor->model],                     \
+                     sensor->description, esp_err_to_name(err));                                                       \
+            sensor->init_status = HYDRO_SENSOR_INIT_ERROR;                                                             \
+            all_sensors_initialized = false;                                                                           \
+            break;                                                                                                     \
+        }                                                                                                              \
+    } while (0)
+
 // TODO: change cases to functions
 esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sensor_count)
 {
+    esp_err_t err = ESP_OK;
+    bool all_sensors_initialized = true;
+
     for (size_t i = 0; i < sensor_count; i++)
     {
         hydro_sensor_t *sensor = &sensors[i];
@@ -49,71 +66,93 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
         case SENSOR_MODEL_AHT20:
             sda = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SDA : HYDRO_PINOUT_I2C1_SDA;
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
-            ESP_ERROR_CHECK(aht_init_desc(&sensor->sensor_obj.aht, sensor->interface.i2c.addr,
-                                          sensor->interface.i2c.port, sda, scl));
-            ESP_ERROR_CHECK(aht_init(&sensor->sensor_obj.aht));
+            __CHECK_INIT_RESP_BREAKCASE(aht_init_desc(&sensor->sensor_obj.aht, sensor->interface.i2c.addr,
+                                                      sensor->interface.i2c.port, sda, scl));
+            __CHECK_INIT_RESP_BREAKCASE(aht_init(&sensor->sensor_obj.aht));
+
             // bool calibrated;
             // ESP_ERROR_CHECK(aht_get_status(&dev, NULL, &calibrated));
             // if (calibrated)
             //     ESP_LOGI(TAG, "Sensor calibrated");
             // else
             //     ESP_LOGW(TAG, "Sensor not calibrated!");
+
+            ESP_LOGI(TAG, "Initialized AHT20 sensor '%s'", sensor->description);
+            sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
             break;
         case SENSOR_MODEL_BME280:
             sda = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SDA : HYDRO_PINOUT_I2C1_SDA;
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
-            ESP_ERROR_CHECK(bmp280_init_desc(&sensor->sensor_obj.bmp280, sensor->interface.i2c.addr,
-                                             sensor->interface.i2c.port, sda, scl));
+            __CHECK_INIT_RESP_BREAKCASE(bmp280_init_desc(&sensor->sensor_obj.bmp280, sensor->interface.i2c.addr,
+                                                         sensor->interface.i2c.port, sda, scl));
             bmp280_params_t params;
             bmp280_init_default_params(&params);
-            ESP_ERROR_CHECK(bmp280_init(&sensor->sensor_obj.bmp280, &params));
+            __CHECK_INIT_RESP_BREAKCASE(bmp280_init(&sensor->sensor_obj.bmp280, &params));
             bool bme280p = sensor->sensor_obj.bmp280.id == BME280_CHIP_ID;
-            ESP_LOGI(TAG, "BMP280: found %s", bme280p ? "BME280" : "BMP280");
+            ESP_LOGI(TAG, "Initialized %s sensor '%s'", bme280p ? "BME280" : "BMP280", sensor->description);
+            sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
             break;
         case SENSOR_MODEL_BME680:
             sda = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SDA : HYDRO_PINOUT_I2C1_SDA;
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
-            ESP_ERROR_CHECK(bme680_init_desc(&sensor->sensor_obj.bme680, sensor->interface.i2c.addr,
-                                             sensor->interface.i2c.port, sda, scl));
-            ESP_ERROR_CHECK(bme680_init_sensor(&sensor->sensor_obj.bme680));
-            ESP_ERROR_CHECK(bme680_set_oversampling_rates(&sensor->sensor_obj.bme680, BME680_OSR_4X, BME680_OSR_NONE,
-                                                          BME680_OSR_2X));
-            ESP_ERROR_CHECK(bme680_set_filter_size(&sensor->sensor_obj.bme680, BME680_IIR_SIZE_7));
+            __CHECK_INIT_RESP_BREAKCASE(bme680_init_desc(&sensor->sensor_obj.bme680, sensor->interface.i2c.addr,
+                                                         sensor->interface.i2c.port, sda, scl));
+            __CHECK_INIT_RESP_BREAKCASE(bme680_init_sensor(&sensor->sensor_obj.bme680));
+            __CHECK_INIT_RESP_BREAKCASE(bme680_set_oversampling_rates(&sensor->sensor_obj.bme680, BME680_OSR_4X,
+                                                                      BME680_OSR_NONE, BME680_OSR_2X));
+            __CHECK_INIT_RESP_BREAKCASE(bme680_set_filter_size(&sensor->sensor_obj.bme680, BME680_IIR_SIZE_7));
             // Change the heater profile 0 to 200 degree Celsius for 100 ms.
-            ESP_ERROR_CHECK(bme680_set_heater_profile(&sensor->sensor_obj.bme680, 0, 200, 100));
-            ESP_ERROR_CHECK(bme680_use_heater_profile(&sensor->sensor_obj.bme680, 0));
+            __CHECK_INIT_RESP_BREAKCASE(bme680_set_heater_profile(&sensor->sensor_obj.bme680, 0, 200, 100));
+            __CHECK_INIT_RESP_BREAKCASE(bme680_use_heater_profile(&sensor->sensor_obj.bme680, 0));
             // Set ambient temperature to 10 degree Celsius
-            ESP_ERROR_CHECK(bme680_set_ambient_temperature(&sensor->sensor_obj.bme680, 10));
+            __CHECK_INIT_RESP_BREAKCASE(bme680_set_ambient_temperature(&sensor->sensor_obj.bme680, 10));
+
+            ESP_LOGI(TAG, "Initialized BME680 sensor '%s'", sensor->description);
+            sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
             break;
         case SENSOR_MODEL_TSL2591:
             sda = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SDA : HYDRO_PINOUT_I2C1_SDA;
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
-            ESP_ERROR_CHECK(tsl2591_init_desc(&sensor->sensor_obj.tsl2591, sensor->interface.i2c.port, sda, scl));
-            ESP_ERROR_CHECK(tsl2591_init(&sensor->sensor_obj.tsl2591));
+            __CHECK_INIT_RESP_BREAKCASE(
+                tsl2591_init_desc(&sensor->sensor_obj.tsl2591, sensor->interface.i2c.port, sda, scl));
+            __CHECK_INIT_RESP_BREAKCASE(tsl2591_init(&sensor->sensor_obj.tsl2591));
             // Turn TSL2591 on
-            ESP_ERROR_CHECK(tsl2591_set_power_status(&sensor->sensor_obj.tsl2591, TSL2591_POWER_ON));
+            __CHECK_INIT_RESP_BREAKCASE(tsl2591_set_power_status(&sensor->sensor_obj.tsl2591, TSL2591_POWER_ON));
             // Turn ALS on
-            ESP_ERROR_CHECK(tsl2591_set_als_status(&sensor->sensor_obj.tsl2591, TSL2591_ALS_ON));
+            __CHECK_INIT_RESP_BREAKCASE(tsl2591_set_als_status(&sensor->sensor_obj.tsl2591, TSL2591_ALS_ON));
             // Set gain
-            ESP_ERROR_CHECK(tsl2591_set_gain(&sensor->sensor_obj.tsl2591, TSL2591_GAIN_MEDIUM));
+            __CHECK_INIT_RESP_BREAKCASE(tsl2591_set_gain(&sensor->sensor_obj.tsl2591, TSL2591_GAIN_MEDIUM));
             // Set integration time = 300ms
-            ESP_ERROR_CHECK(tsl2591_set_integration_time(&sensor->sensor_obj.tsl2591, TSL2591_INTEGRATION_300MS));
+            __CHECK_INIT_RESP_BREAKCASE(
+                tsl2591_set_integration_time(&sensor->sensor_obj.tsl2591, TSL2591_INTEGRATION_300MS));
+
+            ESP_LOGI(TAG, "Initialized TSL2591 sensor '%s'", sensor->description);
+            sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
             break;
         case SENSOR_MODEL_GROVE_WATER_LEVEL:
             sda = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SDA : HYDRO_PINOUT_I2C1_SDA;
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
-            ESP_ERROR_CHECK(grove_water_level_sensor_init_desc(&sensor->sensor_obj.grove_water_level,
-                                                               sensor->interface.i2c.port, sda, scl));
-            ESP_ERROR_CHECK(grove_water_level_sensor_init(&sensor->sensor_obj.grove_water_level));
+            __CHECK_INIT_RESP_BREAKCASE(grove_water_level_sensor_init_desc(&sensor->sensor_obj.grove_water_level,
+                                                                           sensor->interface.i2c.port, sda, scl));
+            __CHECK_INIT_RESP_BREAKCASE(grove_water_level_sensor_init(&sensor->sensor_obj.grove_water_level));
+
+            ESP_LOGI(TAG, "Initialized GROVE_WATER_LEVEL sensor '%s'", sensor->description);
+            sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
             break;
         default:
             ESP_LOGE("init_all_sensors", "Unknown sensor model: %d", sensor->model);
-            // delete mutex
-            vSemaphoreDelete(sensor->sensor_mutex);
-            return ESP_ERR_NOT_SUPPORTED;
+            sensor->init_status = HYDRO_SENSOR_INIT_NOT_SUPPORTED;
+            all_sensors_initialized = false;
+            break;
         }
         // give mutex
         xSemaphoreGive(sensor->sensor_mutex);
+    }
+
+    if (!all_sensors_initialized)
+    {
+        ESP_LOGE(TAG, "Not all sensors initialized successfully. Some sensors may not work.");
+        return ESP_ERR_NOT_FINISHED;
     }
 
     return ESP_OK;
@@ -126,6 +165,13 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
 esp_err_t read_sensor(const char *TAG, hydro_sensor_t *sensor, hydro_data_t *output_data)
 {
     esp_err_t err;
+
+    if (sensor->init_status != HYDRO_SENSOR_INIT_SUCCESS)
+    {
+        ESP_LOGE(TAG, "Sensor %s (%s) not initialized successfully - can't read", HYDRO_SENSOR_MODEL_STR[sensor->model],
+                 sensor->description);
+        return ESP_ERR_INVALID_STATE;
+    }
 
     ESP_LOGD(TAG, "Reading sensor %d - taking mutex", sensor->model);
 
