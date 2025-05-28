@@ -22,6 +22,14 @@ TODO:
 
 hydro_sensor_t sensors[] = {
     {
+        .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
+        .interface.i2c =
+            {
+                .port = I2C_NUM_1,
+            },
+        .description = "water level",
+    },
+    {
         .model = SENSOR_MODEL_AHT20,
         .sensor_obj.aht =
             {
@@ -83,14 +91,10 @@ hydro_sensor_t sensors[] = {
             },
         .description = "outside down",
     },
-    // {
-    //     .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
-    //     .interface.i2c =
-    //         {
-    //             .port = I2C_NUM_0,
-    //         },
-    // },
 };
+
+#define WATER_LEVEL_SENSOR_INDEX 0
+#define HYDRO_MIN_WATER_LEVEL    35 // Minimum water level to start the pump [in mm]
 
 void pump_task(void *pvParameters)
 {
@@ -114,18 +118,36 @@ void pump_task(void *pvParameters)
                                           .hpoint = 0};
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
-    bool state = false;
-
     vTaskDelay(pdMS_TO_TICKS(5000));
+
+    hydro_data_t data;
+    esp_err_t err;
 
     while (1)
     {
+        // Read the water level sensor
+        err = read_sensor(TAG, &sensors[WATER_LEVEL_SENSOR_INDEX], &data);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Error reading water level sensor: %d", err);
+            vTaskDelay(pdMS_TO_TICKS(5000));
+            continue;
+        }
+        ESP_LOGI(TAG, "Water level: %d%%", data.data.water_level.water_level);
+
+        if (data.data.water_level.water_level < HYDRO_MIN_WATER_LEVEL)
+        {
+            ESP_LOGE(TAG, "Water level below minimum (%d%%)!", HYDRO_MIN_WATER_LEVEL);
+            vTaskDelay(pdMS_TO_TICKS(60000));
+            continue;
+        }
+
         ESP_LOGI(TAG, "Starting pump slow start");
         pump_slow_start(&ledc_channel);
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(10000));
         ESP_LOGI(TAG, "Stopping pump slow stop");
         pump_slow_stop(&ledc_channel);
-        vTaskDelay(pdMS_TO_TICKS(15000));
+        vTaskDelay(pdMS_TO_TICKS(120000));
     }
 }
 
