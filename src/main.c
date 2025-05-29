@@ -105,6 +105,41 @@ hydro_sensor_t sensors[] = {
 #define WATER_LEVEL_SENSOR_INDEX 0
 #define HYDRO_MIN_WATER_LEVEL    20 // Minimum water level to start the pump [in mm]
 
+// event group for pump control
+EventGroupHandle_t xLedEventGroup;
+#define LED_EVENT_BLINK_BIT (1 << 0) // Event bit for LED blink
+
+void led_task(void *pvParameters)
+{
+    static const char *TAG = "LED TASK";
+
+    gpio_set_direction(HYDRO_PINOUT_LED, GPIO_MODE_OUTPUT);
+    gpio_set_level(HYDRO_PINOUT_LED, 1);
+
+    // Initialize the event group
+    xLedEventGroup = xEventGroupCreate();
+    if (xLedEventGroup == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create LED event group");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    while (1)
+    {
+        // Wait for the LED blink event
+        EventBits_t uxBits = xEventGroupWaitBits(xLedEventGroup, LED_EVENT_BLINK_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+        if (uxBits & LED_EVENT_BLINK_BIT)
+        {
+            ESP_LOGI(TAG, "Blinking LED");
+            gpio_set_level(HYDRO_PINOUT_LED, 0); // Turn on LED
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            gpio_set_level(HYDRO_PINOUT_LED, 1); // Turn off LED
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+}
+
 void pump_task(void *pvParameters)
 {
     static const char *TAG = "PUMP TASK";
@@ -147,9 +182,14 @@ void pump_task(void *pvParameters)
         if (data.data.water_level.water_level < HYDRO_MIN_WATER_LEVEL)
         {
             ESP_LOGE(TAG, "Water level below minimum (%d%%)!", HYDRO_MIN_WATER_LEVEL);
+            // Notify the LED task to blink the LED
+            xEventGroupSetBits(xLedEventGroup, LED_EVENT_BLINK_BIT);
             vTaskDelay(pdMS_TO_TICKS(60000));
             continue;
         }
+
+        // If water level is sufficient, stop blinking the LED
+        xEventGroupClearBits(xLedEventGroup, LED_EVENT_BLINK_BIT);
 
         ESP_LOGI(TAG, "Starting pump slow start");
         pump_slow_start(&ledc_channel);
@@ -236,4 +276,6 @@ void app_main(void)
     xTaskCreatePinnedToCore(sensors_task, "sensors-task", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 
     xTaskCreatePinnedToCore(pump_task, "pump-task", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+
+    xTaskCreatePinnedToCore(led_task, "led-task", configMINIMAL_STACK_SIZE * 4, NULL, 5, NULL, APP_CPU_NUM);
 }
