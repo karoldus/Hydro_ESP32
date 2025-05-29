@@ -21,11 +21,20 @@ TODO:
 #include "driver/ledc.h"
 
 hydro_sensor_t sensors[] = {
+    // {
+    //     .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
+    //     .interface.i2c =
+    //         {
+    //             .port = I2C_NUM_1,
+    //         },
+    //     .description = "water level",
+    // },
     {
-        .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
-        .interface.i2c =
+        .model = SENSOR_MODEL_ULTRASONIC_WATER_LEVEL,
+        .sensor_obj.ultrasonic =
             {
-                .port = I2C_NUM_1,
+                .trigger_pin = HYDRO_PINOUT_ULTRASONIC_TRIGGER,
+                .echo_pin = HYDRO_PINOUT_ULTRASONIC_ECHO,
             },
         .description = "water level",
     },
@@ -94,7 +103,7 @@ hydro_sensor_t sensors[] = {
 };
 
 #define WATER_LEVEL_SENSOR_INDEX 0
-#define HYDRO_MIN_WATER_LEVEL    35 // Minimum water level to start the pump [in mm]
+#define HYDRO_MIN_WATER_LEVEL    20 // Minimum water level to start the pump [in mm]
 
 void pump_task(void *pvParameters)
 {
@@ -193,7 +202,7 @@ void sensors_task(void *pvParameters)
                 ESP_LOGI(TAG, "Lux: %.2f", data.data.lux.lux);
                 break;
             case HYDRO_DATA_TYPE_WATER_LEVEL:
-                ESP_LOGI(TAG, "Water level: %d%%", data.data.water_level.water_level);
+                ESP_LOGI(TAG, "Water level: %d mm", data.data.water_level.water_level);
                 break;
             default:
                 ESP_LOGE(TAG, "Unknown sensor data type: %d", data.type);

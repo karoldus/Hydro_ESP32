@@ -17,6 +17,8 @@ TODO : change ESP_ERROR_CHECK to something else to avoid aborting the program
 
 #define WAIT_FOR_SENSOR_AVAILABILITY_TIMEOUT_MS (5000)
 
+#define HYDRO_ULTRASONIC_WATER_LEVEL_SENSOR_HEIGHT_CM (12.5) // height of the water level sensor in cm
+
 //==================================
 //========= SENSORS INIT ===========
 //==================================
@@ -139,6 +141,13 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
             ESP_LOGI(TAG, "Initialized GROVE_WATER_LEVEL sensor '%s'", sensor->description);
             sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
             break;
+        case SENSOR_MODEL_ULTRASONIC_WATER_LEVEL:
+            // Ultrasonic sensor initialization
+            __CHECK_INIT_RESP_BREAKCASE(ultrasonic_init(&sensor->sensor_obj.ultrasonic));
+
+            ESP_LOGI(TAG, "Initialized ULTRASONIC_WATER_LEVEL sensor '%s'", sensor->description);
+            sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
+            break;
         default:
             ESP_LOGE("init_all_sensors", "Unknown sensor model: %d", sensor->model);
             sensor->init_status = HYDRO_SENSOR_INIT_NOT_SUPPORTED;
@@ -217,6 +226,31 @@ esp_err_t read_sensor(const char *TAG, hydro_sensor_t *sensor, hydro_data_t *out
             &sensor->sensor_obj.grove_water_level); // TODO fix this function to return value
         if (err != ESP_OK) break;
         output_data->data.water_level.water_level = sensor->sensor_obj.grove_water_level.water_level;
+        break;
+    case SENSOR_MODEL_ULTRASONIC_WATER_LEVEL:
+        output_data->type = HYDRO_DATA_TYPE_WATER_LEVEL;
+        // Ultrasonic sensor reading
+        float distance_m;
+        float distance_cm;
+        err = ultrasonic_measure(&sensor->sensor_obj.ultrasonic, 1, &distance_m);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Error reading ultrasonic sensor: %s", esp_err_to_name(err));
+            break;
+        }
+        distance_cm = distance_m * 100; // Convert meters to centimeters
+
+        ESP_LOGD(TAG, "Ultrasonic sensor distance: %.2f cm", distance_cm);
+        // Convert distance to water level in mm
+        if (distance_cm > HYDRO_ULTRASONIC_WATER_LEVEL_SENSOR_HEIGHT_CM)
+        {
+            output_data->data.water_level.water_level = 0; // No water detected
+        }
+        else
+        {
+            output_data->data.water_level.water_level =
+                (uint8_t)((HYDRO_ULTRASONIC_WATER_LEVEL_SENSOR_HEIGHT_CM - distance_cm) * 10.0);
+        }
         break;
     default:
         ESP_LOGE("read_sensor", "Unknown sensor model: %d", sensor->model);
