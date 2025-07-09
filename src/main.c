@@ -20,6 +20,16 @@ TODO:
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
+//================= DEFINES =================
+
+#define PUMP_ON_TIME_MS                              (10000)  // 10 seconds
+#define PUMP_OFF_TIME_MS                             (600000) // 10 minutes
+#define PUMP_WATER_LEVEL_ERROR_READING_RETRY_TIME_MS (5000)
+#define PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS (60000) // 1 minute
+
+#define WATER_LEVEL_SENSOR_INDEX 0
+#define HYDRO_MIN_WATER_LEVEL    20 // Minimum water level to start the pump [in mm]
+
 hydro_sensor_t sensors[] = {
     // {
     //     .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
@@ -102,9 +112,6 @@ hydro_sensor_t sensors[] = {
     },
 };
 
-#define WATER_LEVEL_SENSOR_INDEX 0
-#define HYDRO_MIN_WATER_LEVEL    20 // Minimum water level to start the pump [in mm]
-
 // event group for pump control
 EventGroupHandle_t xLedEventGroup;
 #define LED_EVENT_BLINK_BIT (1 << 0) // Event bit for LED blink
@@ -174,7 +181,7 @@ void pump_task(void *pvParameters)
         if (err != ESP_OK)
         {
             ESP_LOGE(TAG, "Error reading water level sensor: %d", err);
-            vTaskDelay(pdMS_TO_TICKS(5000));
+            vTaskDelay(pdMS_TO_TICKS(PUMP_WATER_LEVEL_ERROR_READING_RETRY_TIME_MS));
             continue;
         }
         ESP_LOGI(TAG, "Water level: %d%%", data.data.water_level.water_level);
@@ -184,7 +191,7 @@ void pump_task(void *pvParameters)
             ESP_LOGE(TAG, "Water level below minimum (%d%%)!", HYDRO_MIN_WATER_LEVEL);
             // Notify the LED task to blink the LED
             xEventGroupSetBits(xLedEventGroup, LED_EVENT_BLINK_BIT);
-            vTaskDelay(pdMS_TO_TICKS(60000));
+            vTaskDelay(pdMS_TO_TICKS(PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS));
             continue;
         }
 
@@ -193,10 +200,10 @@ void pump_task(void *pvParameters)
 
         ESP_LOGI(TAG, "Starting pump slow start");
         pump_slow_start(&ledc_channel);
-        vTaskDelay(pdMS_TO_TICKS(10000));
+        vTaskDelay(pdMS_TO_TICKS(PUMP_ON_TIME_MS));
         ESP_LOGI(TAG, "Stopping pump slow stop");
         pump_slow_stop(&ledc_channel);
-        vTaskDelay(pdMS_TO_TICKS(120000));
+        vTaskDelay(pdMS_TO_TICKS(PUMP_OFF_TIME_MS));
     }
 }
 
