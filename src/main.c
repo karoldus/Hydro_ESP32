@@ -15,6 +15,7 @@ TODO:
 #include "hydro_pinout.h"
 #include "hydro_pump.h"
 #include "hydro_sensors.h"
+#include "wifi.h"
 
 // drivers
 #include "driver/gpio.h"
@@ -266,6 +267,7 @@ void app_main(void)
     esp_err_t err;
 
     ESP_ERROR_CHECK(i2cdev_init());
+    ESP_ERROR_CHECK(nvs_flash_init());
 
     printf("Hello world!\n");
 
@@ -285,4 +287,9 @@ void app_main(void)
     xTaskCreatePinnedToCore(pump_task, "pump-task", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 
     xTaskCreatePinnedToCore(led_task, "led-task", configMINIMAL_STACK_SIZE * 4, NULL, 5, NULL, APP_CPU_NUM);
+    err = wifi_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Error initializing WiFi: %d", err);
+    }
 }
