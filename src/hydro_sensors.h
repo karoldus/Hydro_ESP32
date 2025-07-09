@@ -7,6 +7,7 @@
 #include <bme680.h>
 #include <bmp280.h>
 #include <tsl2591.h>
+#include <ultrasonic.h>
 
 typedef enum
 {
@@ -14,7 +15,8 @@ typedef enum
     SENSOR_MODEL_BME280,
     SENSOR_MODEL_BME680,
     SENSOR_MODEL_TSL2591,
-    SENSOR_MODEL_GROVE_WATER_LEVEL
+    SENSOR_MODEL_GROVE_WATER_LEVEL,
+    SENSOR_MODEL_ULTRASONIC_WATER_LEVEL,
 } hydro_sensor_model_t;
 
 static const char HYDRO_SENSOR_MODEL_STR[][32] = {
@@ -23,6 +25,7 @@ static const char HYDRO_SENSOR_MODEL_STR[][32] = {
     [SENSOR_MODEL_BME680] = "BME680",
     [SENSOR_MODEL_TSL2591] = "TSL2591",
     [SENSOR_MODEL_GROVE_WATER_LEVEL] = "GROVE_WATER_LEVEL",
+    [SENSOR_MODEL_ULTRASONIC_WATER_LEVEL] = "ULTRASONIC_WATER_LEVEL",
 };
 
 typedef enum
@@ -43,6 +46,7 @@ typedef struct
         bme680_t bme680;
         tsl2591_t tsl2591;
         grove_water_level_sensor_t grove_water_level;
+        ultrasonic_sensor_t ultrasonic;
     } sensor_obj;
     union
     {
@@ -98,7 +102,7 @@ typedef struct
 
 typedef struct
 {
-    uint8_t water_level; // 0-100 %
+    uint8_t water_level; // in mm [max 100 mm]
 } hydro_data_water_level_t;
 
 typedef struct

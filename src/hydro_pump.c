@@ -8,14 +8,16 @@
 #include <stdio.h>
 #include <string.h>
 
+#define PWM_MAX_DUTY 4000 // 8191
+
 bool pump_slow_start(ledc_channel_config_t *ledc_channel)
 {
     bool noerror = true;
     esp_err_t err = ESP_OK;
 
-    for (int i = 0; i < 8191; i += 1000)
+    for (int i = 0; i < PWM_MAX_DUTY; i += PWM_MAX_DUTY / 10)
     {
-        if (i > 8191) i = 8191;
+        if (i > PWM_MAX_DUTY) i = PWM_MAX_DUTY;
 
         err = ledc_set_duty(ledc_channel->speed_mode, ledc_channel->channel, i);
         if (err != ESP_OK)
@@ -43,7 +45,7 @@ bool pump_slow_stop(ledc_channel_config_t *ledc_channel)
     bool noerror = true;
     esp_err_t err = ESP_OK;
 
-    for (int i = 8191; i >= 0; i -= 1000)
+    for (int i = PWM_MAX_DUTY; i >= 0; i -= PWM_MAX_DUTY / 10)
     {
         if (i < 0) i = 0;
 

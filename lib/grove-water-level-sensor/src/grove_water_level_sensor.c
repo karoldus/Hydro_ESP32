@@ -10,7 +10,7 @@
 
 #include <esp_idf_lib_helpers.h>
 
-#define I2C_FREQ_HZ 400000 // 400kHz
+#define I2C_FREQ_HZ 100000 // 100kHz
 static const char *TAG = "GroveWaterLevelSensor";
 
 // ADDRESS
@@ -139,8 +139,8 @@ esp_err_t grove_water_level_sensor_get_water_level(grove_water_level_sensor_t *d
         return err;
     }
 
-    ESP_LOG_BUFFER_HEX_LEVEL(TAG, high_data, 12, ESP_LOG_DEBUG);
-    ESP_LOG_BUFFER_HEX_LEVEL(TAG, low_data, 8, ESP_LOG_DEBUG);
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, high_data, 12, ESP_LOG_WARN);
+    ESP_LOG_BUFFER_HEX_LEVEL(TAG, low_data, 8, ESP_LOG_WARN);
 
     for (int i = 0; i < 8; i++)
     {

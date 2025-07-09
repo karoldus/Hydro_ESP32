@@ -20,7 +20,34 @@ TODO:
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 
+//================= DEFINES =================
+
+#define PUMP_ON_TIME_MS                              (10000)  // 10 seconds
+#define PUMP_OFF_TIME_MS                             (600000) // 10 minutes
+#define PUMP_WATER_LEVEL_ERROR_READING_RETRY_TIME_MS (5000)
+#define PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS (60000) // 1 minute
+
+#define WATER_LEVEL_SENSOR_INDEX 0
+#define HYDRO_MIN_WATER_LEVEL    20 // Minimum water level to start the pump [in mm]
+
 hydro_sensor_t sensors[] = {
+    // {
+    //     .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
+    //     .interface.i2c =
+    //         {
+    //             .port = I2C_NUM_1,
+    //         },
+    //     .description = "water level",
+    // },
+    {
+        .model = SENSOR_MODEL_ULTRASONIC_WATER_LEVEL,
+        .sensor_obj.ultrasonic =
+            {
+                .trigger_pin = HYDRO_PINOUT_ULTRASONIC_TRIGGER,
+                .echo_pin = HYDRO_PINOUT_ULTRASONIC_ECHO,
+            },
+        .description = "water level",
+    },
     {
         .model = SENSOR_MODEL_AHT20,
         .sensor_obj.aht =
@@ -83,14 +110,42 @@ hydro_sensor_t sensors[] = {
             },
         .description = "outside down",
     },
-    // {
-    //     .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
-    //     .interface.i2c =
-    //         {
-    //             .port = I2C_NUM_0,
-    //         },
-    // },
 };
+
+// event group for pump control
+EventGroupHandle_t xLedEventGroup;
+#define LED_EVENT_BLINK_BIT (1 << 0) // Event bit for LED blink
+
+void led_task(void *pvParameters)
+{
+    static const char *TAG = "LED TASK";
+
+    gpio_set_direction(HYDRO_PINOUT_LED, GPIO_MODE_OUTPUT);
+    gpio_set_level(HYDRO_PINOUT_LED, 1);
+
+    // Initialize the event group
+    xLedEventGroup = xEventGroupCreate();
+    if (xLedEventGroup == NULL)
+    {
+        ESP_LOGE(TAG, "Failed to create LED event group");
+        vTaskDelete(NULL);
+        return;
+    }
+
+    while (1)
+    {
+        // Wait for the LED blink event
+        EventBits_t uxBits = xEventGroupWaitBits(xLedEventGroup, LED_EVENT_BLINK_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+        if (uxBits & LED_EVENT_BLINK_BIT)
+        {
+            ESP_LOGI(TAG, "Blinking LED");
+            gpio_set_level(HYDRO_PINOUT_LED, 0); // Turn on LED
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            gpio_set_level(HYDRO_PINOUT_LED, 1); // Turn off LED
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+    }
+}
 
 void pump_task(void *pvParameters)
 {
@@ -114,18 +169,41 @@ void pump_task(void *pvParameters)
                                           .hpoint = 0};
     ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
 
-    bool state = false;
-
     vTaskDelay(pdMS_TO_TICKS(5000));
+
+    hydro_data_t data;
+    esp_err_t err;
 
     while (1)
     {
+        // Read the water level sensor
+        err = read_sensor(TAG, &sensors[WATER_LEVEL_SENSOR_INDEX], &data);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Error reading water level sensor: %d", err);
+            vTaskDelay(pdMS_TO_TICKS(PUMP_WATER_LEVEL_ERROR_READING_RETRY_TIME_MS));
+            continue;
+        }
+        ESP_LOGI(TAG, "Water level: %d%%", data.data.water_level.water_level);
+
+        if (data.data.water_level.water_level < HYDRO_MIN_WATER_LEVEL)
+        {
+            ESP_LOGE(TAG, "Water level below minimum (%d%%)!", HYDRO_MIN_WATER_LEVEL);
+            // Notify the LED task to blink the LED
+            xEventGroupSetBits(xLedEventGroup, LED_EVENT_BLINK_BIT);
+            vTaskDelay(pdMS_TO_TICKS(PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS));
+            continue;
+        }
+
+        // If water level is sufficient, stop blinking the LED
+        xEventGroupClearBits(xLedEventGroup, LED_EVENT_BLINK_BIT);
+
         ESP_LOGI(TAG, "Starting pump slow start");
         pump_slow_start(&ledc_channel);
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        vTaskDelay(pdMS_TO_TICKS(PUMP_ON_TIME_MS));
         ESP_LOGI(TAG, "Stopping pump slow stop");
         pump_slow_stop(&ledc_channel);
-        vTaskDelay(pdMS_TO_TICKS(15000));
+        vTaskDelay(pdMS_TO_TICKS(PUMP_OFF_TIME_MS));
     }
 }
 
@@ -171,7 +249,7 @@ void sensors_task(void *pvParameters)
                 ESP_LOGI(TAG, "Lux: %.2f", data.data.lux.lux);
                 break;
             case HYDRO_DATA_TYPE_WATER_LEVEL:
-                ESP_LOGI(TAG, "Water level: %d%%", data.data.water_level.water_level);
+                ESP_LOGI(TAG, "Water level: %d mm", data.data.water_level.water_level);
                 break;
             default:
                 ESP_LOGE(TAG, "Unknown sensor data type: %d", data.type);
@@ -205,4 +283,6 @@ void app_main(void)
     xTaskCreatePinnedToCore(sensors_task, "sensors-task", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
 
     xTaskCreatePinnedToCore(pump_task, "pump-task", configMINIMAL_STACK_SIZE * 8, NULL, 5, NULL, APP_CPU_NUM);
+
+    xTaskCreatePinnedToCore(led_task, "led-task", configMINIMAL_STACK_SIZE * 4, NULL, 5, NULL, APP_CPU_NUM);
 }
