@@ -28,10 +28,21 @@ TODO:
 #define PUMP_WATER_LEVEL_ERROR_READING_RETRY_TIME_MS (5000)
 #define PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS (60000) // 1 minute
 
-#define WATER_LEVEL_SENSOR_INDEX 0
-#define HYDRO_MIN_WATER_LEVEL    20 // Minimum water level to start the pump [in mm]
+#define HYDRO_MIN_WATER_LEVEL 20 // Minimum water level to start the pump [in mm]
 
-hydro_sensor_t sensors[] = {
+//================= SENSORS =================
+
+hydro_sensors_group_t hydro_basic_sensors = {
+    .water_level_sensor =
+        {
+            .model = SENSOR_MODEL_ULTRASONIC_WATER_LEVEL,
+            .sensor_obj.ultrasonic =
+                {
+                    .trigger_pin = HYDRO_PINOUT_ULTRASONIC_TRIGGER,
+                    .echo_pin = HYDRO_PINOUT_ULTRASONIC_ECHO,
+                },
+            .description = "water level",
+        },
     // {
     //     .model = SENSOR_MODEL_GROVE_WATER_LEVEL,
     //     .interface.i2c =
@@ -40,77 +51,82 @@ hydro_sensor_t sensors[] = {
     //         },
     //     .description = "water level",
     // },
-    {
-        .model = SENSOR_MODEL_ULTRASONIC_WATER_LEVEL,
-        .sensor_obj.ultrasonic =
-            {
-                .trigger_pin = HYDRO_PINOUT_ULTRASONIC_TRIGGER,
-                .echo_pin = HYDRO_PINOUT_ULTRASONIC_ECHO,
-            },
-        .description = "water level",
-    },
-    {
-        .model = SENSOR_MODEL_AHT20,
-        .sensor_obj.aht =
-            {
-                .type = AHT_TYPE_AHT20,
-                .mode = AHT_MODE_NORMAL,
-            },
-        .interface.i2c =
-            {
-                .addr = AHT_I2C_ADDRESS_GND,
-                .port = I2C_NUM_0,
-            },
-        .description = "inside up",
-    },
-    {
-        .model = SENSOR_MODEL_BME280,
-        .interface.i2c =
-            {
-                .addr = BMP280_I2C_ADDRESS_1,
-                .port = I2C_NUM_0,
-            },
-        .description = "outside up",
-    },
-    // { // TODO: dlaczego nie działa?
-    //     .model = SENSOR_MODEL_BME680,
-    //     .interface.i2c =
-    //         {
-    //             .addr = BME680_I2C_ADDR_0,
-    //             .port = I2C_NUM_1,
-    //         },
-    //     .description = "outside down",
-    // },
-    {
-        .model = SENSOR_MODEL_TSL2591,
-        .interface.i2c =
-            {
-                .port = I2C_NUM_0,
-            },
-        .description = "outside up",
-    },
-    {
-        .model = SENSOR_MODEL_AHT20,
-        .sensor_obj.aht =
-            {
-                .type = AHT_TYPE_AHT20,
-                .mode = AHT_MODE_NORMAL,
-            },
-        .interface.i2c =
-            {
-                .addr = AHT_I2C_ADDRESS_GND,
-                .port = I2C_NUM_1,
-            },
-        .description = "inside down",
-    },
-    {
-        .model = SENSOR_MODEL_TSL2591,
-        .interface.i2c =
-            {
-                .port = I2C_NUM_1,
-            },
-        .description = "outside down",
-    },
+    .inside_down_temp_hum_sensor =
+        {
+            .model = SENSOR_MODEL_AHT20,
+            .sensor_obj.aht =
+                {
+                    .type = AHT_TYPE_AHT20,
+                    .mode = AHT_MODE_NORMAL,
+                },
+            .interface.i2c =
+                {
+                    .addr = AHT_I2C_ADDRESS_GND,
+                    .port = I2C_NUM_1,
+                },
+            .description = "inside down",
+        },
+    .inside_up_temp_hum_sensor =
+        {
+            .model = SENSOR_MODEL_AHT20,
+            .sensor_obj.aht =
+                {
+                    .type = AHT_TYPE_AHT20,
+                    .mode = AHT_MODE_NORMAL,
+                },
+            .interface.i2c =
+                {
+                    .addr = AHT_I2C_ADDRESS_GND,
+                    .port = I2C_NUM_0,
+                },
+            .description = "inside up",
+        },
+    .outside_down_temp_hum_sensor =
+        {
+            // TODO: dlaczego nie działa?
+            .model = SENSOR_MODEL_BME680,
+            .interface.i2c =
+                {
+                    .addr = BME680_I2C_ADDR_0,
+                    .port = I2C_NUM_1,
+                },
+            .description = "outside down",
+        },
+    .outside_down_lux_sensor =
+        {
+            .model = SENSOR_MODEL_TSL2591,
+            .interface.i2c =
+                {
+                    .port = I2C_NUM_1,
+                },
+            .description = "outside down",
+        },
+    .outside_up_temp_hum_sensor =
+        {
+            .model = SENSOR_MODEL_BME280,
+            .interface.i2c =
+                {
+                    .addr = BMP280_I2C_ADDRESS_1,
+                    .port = I2C_NUM_0,
+                },
+            .description = "outside up",
+        },
+    .outside_up_lux_sensor =
+        {
+            .model = SENSOR_MODEL_TSL2591,
+            .interface.i2c =
+                {
+                    .port = I2C_NUM_0,
+                },
+            .description = "outside up",
+        },
+};
+
+hydro_sensor_t *sensors_obj_list[] = {
+    &hydro_basic_sensors.water_level_sensor,        &hydro_basic_sensors.inside_down_temp_hum_sensor,
+    &hydro_basic_sensors.inside_up_temp_hum_sensor, &hydro_basic_sensors.outside_down_temp_hum_sensor,
+    &hydro_basic_sensors.outside_down_lux_sensor,   &hydro_basic_sensors.outside_up_temp_hum_sensor,
+    &hydro_basic_sensors.outside_up_lux_sensor,
 };
 
 // event group for pump control
@@ -178,7 +194,7 @@ void pump_task(void *pvParameters)
     while (1)
     {
         // Read the water level sensor
-        err = read_sensor(TAG, &sensors[WATER_LEVEL_SENSOR_INDEX], &data);
+        err = read_sensor(TAG, &hydro_basic_sensors.water_level_sensor, &data);
         if (err != ESP_OK)
         {
             ESP_LOGE(TAG, "Error reading water level sensor: %d", err);
@@ -217,18 +233,18 @@ void sensors_task(void *pvParameters)
 
     while (1)
     {
-        for (size_t i = 0; i < sizeof(sensors) / sizeof(hydro_sensor_t); i++)
+        for (size_t i = 0; i < sizeof(sensors_obj_list) / sizeof(hydro_sensor_t *); i++)
         {
-            err = read_sensor(TAG, &sensors[i], &data);
+            err = read_sensor(TAG, sensors_obj_list[i], &data);
             if (err != ESP_OK)
             {
-                ESP_LOGE(TAG, "Error reading sensor %s (%s): %d", HYDRO_SENSOR_MODEL_STR[sensors[i].model],
-                         sensors[i].description, err);
+                ESP_LOGE(TAG, "Error reading sensor %s (%s): %d", HYDRO_SENSOR_MODEL_STR[sensors_obj_list[i]->model],
+                         sensors_obj_list[i]->description, err);
                 continue;
             }
 
-            ESP_LOGI(TAG, "Sensor %s (%s) read successfully:", HYDRO_SENSOR_MODEL_STR[sensors[i].model],
-                     sensors[i].description);
+            ESP_LOGI(TAG, "Sensor %s (%s) read successfully:", HYDRO_SENSOR_MODEL_STR[sensors_obj_list[i]->model],
+                     sensors_obj_list[i]->description);
 
             switch (data.type)
             {
@@ -271,7 +287,7 @@ void app_main(void)
 
     printf("Hello world!\n");
 
-    err = init_all_sensors(TAG, sensors, sizeof(sensors) / sizeof(hydro_sensor_t));
+    err = init_all_sensors(TAG, sensors_obj_list, sizeof(sensors_obj_list) / sizeof(hydro_sensor_t *));
     if (err == ESP_ERR_NOT_FINISHED)
     {
         ESP_LOGW(TAG, "Not all sensors initialized!");

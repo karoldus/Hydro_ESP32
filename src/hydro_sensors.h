@@ -9,6 +9,8 @@
 #include <tsl2591.h>
 #include <ultrasonic.h>
 
+// =========== SENSOR ===========
+
 typedef enum
 {
     SENSOR_MODEL_AHT20,
@@ -62,6 +64,19 @@ typedef struct
     hydro_sensor_init_status_t init_status;
     char description[16]; // e.g. "inside up"
 } hydro_sensor_t;
+
+// =========== SENSORS GROUP ===========
+
+typedef struct
+{
+    hydro_sensor_t water_level_sensor; // e.g. ultrasonic or grove water level sensor
+    hydro_sensor_t inside_down_temp_hum_sensor;
+    hydro_sensor_t inside_up_temp_hum_sensor;
+    hydro_sensor_t outside_down_temp_hum_sensor;
+    hydro_sensor_t outside_down_lux_sensor;
+    hydro_sensor_t outside_up_temp_hum_sensor;
+    hydro_sensor_t outside_up_lux_sensor;
+} hydro_sensors_group_t;
 
 // =========== SENSOR DATA ===========
 
@@ -122,7 +137,7 @@ typedef struct
 //========= PUBLIC FUNCTIONS =======
 //==================================
 
-esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sensor_count);
+esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t **sensors, size_t sensor_count);
 
 esp_err_t read_sensor(const char *TAG, hydro_sensor_t *sensor, hydro_data_t *output_data);
 

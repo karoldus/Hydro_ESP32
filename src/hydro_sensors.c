@@ -38,14 +38,14 @@ TODO : change ESP_ERROR_CHECK to something else to avoid aborting the program
     } while (0)
 
 // TODO: change cases to functions
-esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sensor_count)
+esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t **sensors, size_t sensor_count)
 {
     esp_err_t err = ESP_OK;
     bool all_sensors_initialized = true;
 
     for (size_t i = 0; i < sensor_count; i++)
     {
-        hydro_sensor_t *sensor = &sensors[i];
+        hydro_sensor_t *sensor = sensors[i];
         gpio_num_t sda;
         gpio_num_t scl;
 
