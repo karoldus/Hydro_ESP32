@@ -15,6 +15,7 @@ TODO:
 #include "hydro_pinout.h"
 #include "hydro_pump.h"
 #include "hydro_sensors.h"
+#include "sender.h"
 #include "wifi.h"
 
 // drivers
@@ -391,10 +392,18 @@ void basic_sensors_task(void *pvParameters)
 
         // Convert to string and print
         char *json_string = cJSON_Print(root);
+        char *json_string_unformatted = cJSON_PrintUnformatted(root);
+
         if (json_string)
         {
             ESP_LOGI(TAG, "Sensor data: %s", json_string);
             free(json_string);
+        }
+
+        if (json_string_unformatted)
+        {
+            send_json_data(TAG, json_string_unformatted, strlen(json_string_unformatted));
+            free(json_string_unformatted);
         }
 
         // Clean up
