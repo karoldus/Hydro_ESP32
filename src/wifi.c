@@ -2,6 +2,9 @@
 
 static const char *TAG = "wifi";
 
+#define WIFI_SSID     "HydroWifi"
+#define WIFI_PASSWORD "xxx"
+
 #define WIFI_TASK_CORE (0)
 
 #define WIFI_STA_CONNECTED_BIT BIT0
@@ -37,8 +40,8 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
         wifi_config_t service_wifi_config = {
             .sta =
                 {
-                    .ssid = "karrol",
-                    .password = "ghfkf123",
+                    .ssid = WIFI_SSID,
+                    .password = WIFI_PASSWORD,
                     .bssid_set = false,
                     .channel = 0,
                     .threshold = {.authmode = WIFI_AUTH_OPEN},
@@ -74,16 +77,24 @@ static void wifi_event_handler(void *arg, esp_event_base_t event_base, int32_t e
     }
 }
 
-esp_err_t wait_for_wifi_connection()
+esp_err_t wait_for_wifi_connection(uint16_t timeout_ms)
 {
     if (wifi_event_group == NULL)
     {
         ESP_LOGE(TAG, "wifi_event_group == NULL");
         return ESP_ERR_INVALID_STATE;
     }
-    xEventGroupWaitBits(wifi_event_group, WIFI_STA_CONNECTED_BIT, pdFALSE, pdFALSE, portMAX_DELAY);
+    xEventGroupWaitBits(wifi_event_group, WIFI_STA_CONNECTED_BIT, pdFALSE, pdFALSE, pdMS_TO_TICKS(timeout_ms));
 
-    return ESP_OK;
+    EventBits_t bits = xEventGroupGetBits(wifi_event_group);
+    if (bits & WIFI_STA_CONNECTED_BIT)
+    {
+        return ESP_OK;
+    }
+    else
+    {
+        return ESP_FAIL;
+    }
 }
 
 esp_err_t wifi_init()

@@ -10,6 +10,7 @@ TODO : change ESP_ERROR_CHECK to something else to avoid aborting the program
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -219,6 +220,12 @@ esp_err_t read_sensor(const char *TAG, hydro_sensor_t *sensor, hydro_data_t *out
     case SENSOR_MODEL_TSL2591:
         output_data->type = HYDRO_DATA_TYPE_LUX;
         err = tsl2591_get_lux(&sensor->sensor_obj.tsl2591, &output_data->data.lux.lux);
+        if (isnan(output_data->data.lux.lux))
+        {
+            ESP_LOGW(TAG, "TSL2591 returned NaN lux value");
+            output_data->data.lux.lux = 0.0; // Set to zero when NaN
+            err = ESP_ERR_INVALID_SIZE;
+        }
         break;
     case SENSOR_MODEL_GROVE_WATER_LEVEL:
         output_data->type = HYDRO_DATA_TYPE_WATER_LEVEL;

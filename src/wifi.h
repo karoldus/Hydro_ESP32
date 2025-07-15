@@ -15,9 +15,11 @@
 /**
  * @brief Wait for WiFi driver to connect with AP.
  *
+ * @param timeout_ms Timeout in milliseconds to wait for connection.
+ *
  * @return esp_err_t
  */
-esp_err_t wait_for_wifi_connection();
+esp_err_t wait_for_wifi_connection(uint16_t timeout_ms);
 
 /**
  * @brief Initialize WiFi driver in STATION mode.
