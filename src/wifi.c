@@ -2,9 +2,6 @@
 
 static const char *TAG = "wifi";
 
-#define WIFI_SSID     "HydroWifi"
-#define WIFI_PASSWORD "xxx"
-
 #define WIFI_TASK_CORE (0)
 
 #define WIFI_STA_CONNECTED_BIT BIT0

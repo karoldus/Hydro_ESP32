@@ -28,6 +28,7 @@ TODO:
 #define PUMP_OFF_TIME_MS                             (600000) // 10 minutes
 #define PUMP_WATER_LEVEL_ERROR_READING_RETRY_TIME_MS (5000)
 #define PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS (60000) // 1 minute
+#define SENSORS_MEASURE_INTERVAL_MS                  (5000)
 
 #define HYDRO_MIN_WATER_LEVEL 20 // Minimum water level to start the pump [in mm]
 
@@ -326,77 +327,80 @@ void basic_sensors_task(void *pvParameters)
         cJSON *outside_down = cJSON_CreateObject();
 
         // Add data to the JSON structure
-        if (root && data && inside && outside && inside_up && inside_down && outside_up && outside_down)
+        if (!root || !data || !inside || !outside || !inside_up || !inside_down || !outside_up || !outside_down)
         {
-            // Add water level data
-            if (water_level.type == HYDRO_DATA_TYPE_WATER_LEVEL)
-            {
-                cJSON_AddNumberToObject(data, "water_level", water_level.data.water_level.water_level);
-            }
-
-            // Add inside up temperature and humidity
-            if (inside_up_temp_hum.type == HYDRO_DATA_TYPE_TEMP_HUM)
-            {
-                cJSON_AddNumberToObject(inside_up, "temperature", inside_up_temp_hum.data.temp_hum.temperature_c);
-                cJSON_AddNumberToObject(inside_up, "humidity", inside_up_temp_hum.data.temp_hum.humidity);
-            }
-            cJSON_AddItemToObject(inside, "up", inside_up);
-
-            // Add inside down temperature and humidity
-            if (inside_down_temp_hum.type == HYDRO_DATA_TYPE_TEMP_HUM)
-            {
-                cJSON_AddNumberToObject(inside_down, "temperature", inside_down_temp_hum.data.temp_hum.temperature_c);
-                cJSON_AddNumberToObject(inside_down, "humidity", inside_down_temp_hum.data.temp_hum.humidity);
-            }
-            cJSON_AddItemToObject(inside, "down", inside_down);
-
-            // Add outside up temperature and humidity
-            if (outside_up_temp_hum.type == HYDRO_DATA_TYPE_TEMP_HUM_PRESS)
-            {
-                cJSON_AddNumberToObject(outside_up, "temperature",
-                                        outside_up_temp_hum.data.temp_hum_press.temperature_c);
-                cJSON_AddNumberToObject(outside_up, "humidity", outside_up_temp_hum.data.temp_hum_press.humidity);
-            }
-            // Add outside up light level
-            if (outside_up_lux.type == HYDRO_DATA_TYPE_LUX)
-            {
-                cJSON_AddNumberToObject(outside_up, "lux", outside_up_lux.data.lux.lux);
-            }
-            cJSON_AddItemToObject(outside, "up", outside_up);
-
-            // Add outside down temperature and humidity
-            if (outside_down_temp_hum.type == HYDRO_DATA_TYPE_TEMP_HUM_PRESS_GAS)
-            {
-                cJSON_AddNumberToObject(outside_down, "temperature",
-                                        outside_down_temp_hum.data.temp_hum_press_gas.temperature_c);
-                cJSON_AddNumberToObject(outside_down, "humidity",
-                                        outside_down_temp_hum.data.temp_hum_press_gas.humidity);
-            }
-            // Add outside down light level
-            if (outside_down_lux.type == HYDRO_DATA_TYPE_LUX)
-            {
-                cJSON_AddNumberToObject(outside_down, "lux", outside_down_lux.data.lux.lux);
-            }
-            cJSON_AddItemToObject(outside, "down", outside_down);
-
-            // Link everything together
-            cJSON_AddItemToObject(data, "inside", inside);
-            cJSON_AddItemToObject(data, "outside", outside);
-            cJSON_AddItemToObject(root, "data", data);
-
-            // Convert to string and print
-            char *json_string = cJSON_Print(root);
-            if (json_string)
-            {
-                ESP_LOGI(TAG, "Sensor data: %s", json_string);
-                free(json_string);
-            }
-
-            // Clean up
-            cJSON_Delete(root);
+            ESP_LOGE(TAG, "Failed to create JSON objects");
+            if (root) cJSON_Delete(root);
+            vTaskDelay(pdMS_TO_TICKS(SENSORS_MEASURE_INTERVAL_MS));
+            continue;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(5000));
+        // Add water level data
+        if (water_level.type == HYDRO_DATA_TYPE_WATER_LEVEL)
+        {
+            cJSON_AddNumberToObject(data, "water_level", water_level.data.water_level.water_level);
+        }
+
+        // Add inside up temperature and humidity
+        if (inside_up_temp_hum.type == HYDRO_DATA_TYPE_TEMP_HUM)
+        {
+            cJSON_AddNumberToObject(inside_up, "temperature", inside_up_temp_hum.data.temp_hum.temperature_c);
+            cJSON_AddNumberToObject(inside_up, "humidity", inside_up_temp_hum.data.temp_hum.humidity);
+        }
+        cJSON_AddItemToObject(inside, "up", inside_up);
+
+        // Add inside down temperature and humidity
+        if (inside_down_temp_hum.type == HYDRO_DATA_TYPE_TEMP_HUM)
+        {
+            cJSON_AddNumberToObject(inside_down, "temperature", inside_down_temp_hum.data.temp_hum.temperature_c);
+            cJSON_AddNumberToObject(inside_down, "humidity", inside_down_temp_hum.data.temp_hum.humidity);
+        }
+        cJSON_AddItemToObject(inside, "down", inside_down);
+
+        // Add outside up temperature and humidity
+        if (outside_up_temp_hum.type == HYDRO_DATA_TYPE_TEMP_HUM_PRESS)
+        {
+            cJSON_AddNumberToObject(outside_up, "temperature", outside_up_temp_hum.data.temp_hum_press.temperature_c);
+            cJSON_AddNumberToObject(outside_up, "humidity", outside_up_temp_hum.data.temp_hum_press.humidity);
+        }
+        // Add outside up light level
+        if (outside_up_lux.type == HYDRO_DATA_TYPE_LUX)
+        {
+            cJSON_AddNumberToObject(outside_up, "lux", outside_up_lux.data.lux.lux);
+        }
+        cJSON_AddItemToObject(outside, "up", outside_up);
+
+        // Add outside down temperature and humidity
+        if (outside_down_temp_hum.type == HYDRO_DATA_TYPE_TEMP_HUM_PRESS_GAS)
+        {
+            cJSON_AddNumberToObject(outside_down, "temperature",
+                                    outside_down_temp_hum.data.temp_hum_press_gas.temperature_c);
+            cJSON_AddNumberToObject(outside_down, "humidity", outside_down_temp_hum.data.temp_hum_press_gas.humidity);
+        }
+        // Add outside down light level
+        if (outside_down_lux.type == HYDRO_DATA_TYPE_LUX)
+        {
+            cJSON_AddNumberToObject(outside_down, "lux", outside_down_lux.data.lux.lux);
+        }
+        cJSON_AddItemToObject(outside, "down", outside_down);
+
+        // Link everything together
+        cJSON_AddItemToObject(data, "inside", inside);
+        cJSON_AddItemToObject(data, "outside", outside);
+        cJSON_AddItemToObject(root, "data", data);
+
+        // Convert to string and print
+        char *json_string = cJSON_Print(root);
+        if (json_string)
+        {
+            ESP_LOGI(TAG, "Sensor data: %s", json_string);
+            free(json_string);
+        }
+
+        // Clean up
+        cJSON_Delete(root);
+
+        vTaskDelay(pdMS_TO_TICKS(SENSORS_MEASURE_INTERVAL_MS));
     }
 }
 
