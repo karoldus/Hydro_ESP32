@@ -28,8 +28,8 @@ TODO:
 #define PUMP_ON_TIME_MS                              (10000)  // 10 seconds
 #define PUMP_OFF_TIME_MS                             (600000) // 10 minutes
 #define PUMP_WATER_LEVEL_ERROR_READING_RETRY_TIME_MS (5000)
-#define PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS (60000) // 1 minute
-#define SENSORS_MEASURE_INTERVAL_MS                  (5000)
+#define PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS (60000)  // 1 minute
+#define SENSORS_MEASURE_INTERVAL_MS                  (300000) // 5 minutes
 
 #define HYDRO_MIN_WATER_LEVEL 20 // Minimum water level to start the pump [in mm]
 
