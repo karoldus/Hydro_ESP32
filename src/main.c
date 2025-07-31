@@ -30,6 +30,7 @@ TODO:
 #define PUMP_WATER_LEVEL_ERROR_READING_RETRY_TIME_MS (5000)
 #define PUMP_WATER_LEVEL_BELOW_MINIMUM_RETRY_TIME_MS (60000)  // 1 minute
 #define SENSORS_MEASURE_INTERVAL_MS                  (300000) // 5 minutes
+#define SENSORS_MEASURE_INTERVAL_NO_WIFI_MS          (30000)  // 30 seconds
 
 #define HYDRO_MIN_WATER_LEVEL 20 // Minimum water level to start the pump [in mm]
 
@@ -307,7 +308,6 @@ void basic_sensors_task(void *pvParameters)
 
     while (1)
     {
-
         // Now use the macro for the water level sensor
         READ_SENSOR(&hydro_basic_sensors.water_level_sensor, &water_level);
         READ_SENSOR(&hydro_basic_sensors.inside_down_temp_hum_sensor, &inside_down_temp_hum);
@@ -402,14 +402,23 @@ void basic_sensors_task(void *pvParameters)
 
         if (json_string_unformatted)
         {
-            send_json_data(TAG, json_string_unformatted, strlen(json_string_unformatted));
+            err = send_json_data(TAG, json_string_unformatted, strlen(json_string_unformatted));
             free(json_string_unformatted);
         }
 
         // Clean up
         cJSON_Delete(root);
 
-        vTaskDelay(pdMS_TO_TICKS(SENSORS_MEASURE_INTERVAL_MS));
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Error sending JSON data: %d", err);
+            vTaskDelay(pdMS_TO_TICKS(SENSORS_MEASURE_INTERVAL_NO_WIFI_MS));
+        }
+        else
+        {
+            ESP_LOGI(TAG, "JSON data sent successfully");
+            vTaskDelay(pdMS_TO_TICKS(SENSORS_MEASURE_INTERVAL_MS));
+        }
     }
 }
 
