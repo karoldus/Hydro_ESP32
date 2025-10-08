@@ -12,7 +12,7 @@
 // #define HYDRO_PINOUT_PWM (1)
 
 #define HYDRO_PINOUT_PUMP_PWM (33)
-#define HYDRO_PINOUT_LED      (34)
+#define HYDRO_PINOUT_LED      (35)
 // mosfets are 33, 34, 35
 
 #define HYDRO_PINOUT_ULTRASONIC_TRIGGER (17)
