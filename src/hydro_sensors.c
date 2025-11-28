@@ -10,12 +10,15 @@ TODO : change ESP_ERROR_CHECK to something else to avoid aborting the program
 #include <esp_system.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "hydro_pinout.h"
 
 #define WAIT_FOR_SENSOR_AVAILABILITY_TIMEOUT_MS (5000)
+
+#define HYDRO_ULTRASONIC_WATER_LEVEL_SENSOR_HEIGHT_CM (12.5) // height of the water level sensor in cm
 
 //==================================
 //========= SENSORS INIT ===========
@@ -36,14 +39,14 @@ TODO : change ESP_ERROR_CHECK to something else to avoid aborting the program
     } while (0)
 
 // TODO: change cases to functions
-esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sensor_count)
+esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t **sensors, size_t sensor_count)
 {
     esp_err_t err = ESP_OK;
     bool all_sensors_initialized = true;
 
     for (size_t i = 0; i < sensor_count; i++)
     {
-        hydro_sensor_t *sensor = &sensors[i];
+        hydro_sensor_t *sensor = sensors[i];
         gpio_num_t sda;
         gpio_num_t scl;
 
@@ -68,6 +71,8 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
             __CHECK_INIT_RESP_BREAKCASE(aht_init_desc(&sensor->sensor_obj.aht, sensor->interface.i2c.addr,
                                                       sensor->interface.i2c.port, sda, scl));
+            if (err != ESP_OK) break;
+
             __CHECK_INIT_RESP_BREAKCASE(aht_init(&sensor->sensor_obj.aht));
 
             // bool calibrated;
@@ -77,6 +82,8 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
             // else
             //     ESP_LOGW(TAG, "Sensor not calibrated!");
 
+            if (err != ESP_OK) break;
+
             ESP_LOGI(TAG, "Initialized AHT20 sensor '%s'", sensor->description);
             sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
             break;
@@ -85,9 +92,11 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
             __CHECK_INIT_RESP_BREAKCASE(bmp280_init_desc(&sensor->sensor_obj.bmp280, sensor->interface.i2c.addr,
                                                          sensor->interface.i2c.port, sda, scl));
+            if (err != ESP_OK) break;
             bmp280_params_t params;
             bmp280_init_default_params(&params);
             __CHECK_INIT_RESP_BREAKCASE(bmp280_init(&sensor->sensor_obj.bmp280, &params));
+            if (err != ESP_OK) break;
             bool bme280p = sensor->sensor_obj.bmp280.id == BME280_CHIP_ID;
             ESP_LOGI(TAG, "Initialized %s sensor '%s'", bme280p ? "BME280" : "BMP280", sensor->description);
             sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
@@ -97,15 +106,22 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
             __CHECK_INIT_RESP_BREAKCASE(bme680_init_desc(&sensor->sensor_obj.bme680, sensor->interface.i2c.addr,
                                                          sensor->interface.i2c.port, sda, scl));
+            if (err != ESP_OK) break;
             __CHECK_INIT_RESP_BREAKCASE(bme680_init_sensor(&sensor->sensor_obj.bme680));
+            if (err != ESP_OK) break;
             __CHECK_INIT_RESP_BREAKCASE(bme680_set_oversampling_rates(&sensor->sensor_obj.bme680, BME680_OSR_4X,
                                                                       BME680_OSR_NONE, BME680_OSR_2X));
+            if (err != ESP_OK) break;
             __CHECK_INIT_RESP_BREAKCASE(bme680_set_filter_size(&sensor->sensor_obj.bme680, BME680_IIR_SIZE_7));
+            if (err != ESP_OK) break;
             // Change the heater profile 0 to 200 degree Celsius for 100 ms.
             __CHECK_INIT_RESP_BREAKCASE(bme680_set_heater_profile(&sensor->sensor_obj.bme680, 0, 200, 100));
+            if (err != ESP_OK) break;
             __CHECK_INIT_RESP_BREAKCASE(bme680_use_heater_profile(&sensor->sensor_obj.bme680, 0));
+            if (err != ESP_OK) break;
             // Set ambient temperature to 10 degree Celsius
             __CHECK_INIT_RESP_BREAKCASE(bme680_set_ambient_temperature(&sensor->sensor_obj.bme680, 10));
+            if (err != ESP_OK) break;
 
             ESP_LOGI(TAG, "Initialized BME680 sensor '%s'", sensor->description);
             sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
@@ -115,16 +131,22 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
             __CHECK_INIT_RESP_BREAKCASE(
                 tsl2591_init_desc(&sensor->sensor_obj.tsl2591, sensor->interface.i2c.port, sda, scl));
+            if (err != ESP_OK) break;
             __CHECK_INIT_RESP_BREAKCASE(tsl2591_init(&sensor->sensor_obj.tsl2591));
+            if (err != ESP_OK) break;
             // Turn TSL2591 on
             __CHECK_INIT_RESP_BREAKCASE(tsl2591_set_power_status(&sensor->sensor_obj.tsl2591, TSL2591_POWER_ON));
+            if (err != ESP_OK) break;
             // Turn ALS on
             __CHECK_INIT_RESP_BREAKCASE(tsl2591_set_als_status(&sensor->sensor_obj.tsl2591, TSL2591_ALS_ON));
+            if (err != ESP_OK) break;
             // Set gain
             __CHECK_INIT_RESP_BREAKCASE(tsl2591_set_gain(&sensor->sensor_obj.tsl2591, TSL2591_GAIN_MEDIUM));
+            if (err != ESP_OK) break;
             // Set integration time = 300ms
             __CHECK_INIT_RESP_BREAKCASE(
                 tsl2591_set_integration_time(&sensor->sensor_obj.tsl2591, TSL2591_INTEGRATION_300MS));
+            if (err != ESP_OK) break;
 
             ESP_LOGI(TAG, "Initialized TSL2591 sensor '%s'", sensor->description);
             sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
@@ -134,9 +156,19 @@ esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sens
             scl = sensor->interface.i2c.port == 0 ? HYDRO_PINOUT_I2C0_SCL : HYDRO_PINOUT_I2C1_SCL;
             __CHECK_INIT_RESP_BREAKCASE(grove_water_level_sensor_init_desc(&sensor->sensor_obj.grove_water_level,
                                                                            sensor->interface.i2c.port, sda, scl));
+            if (err != ESP_OK) break;
             __CHECK_INIT_RESP_BREAKCASE(grove_water_level_sensor_init(&sensor->sensor_obj.grove_water_level));
+            if (err != ESP_OK) break;
 
             ESP_LOGI(TAG, "Initialized GROVE_WATER_LEVEL sensor '%s'", sensor->description);
+            sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
+            break;
+        case SENSOR_MODEL_ULTRASONIC_WATER_LEVEL:
+            // Ultrasonic sensor initialization
+            __CHECK_INIT_RESP_BREAKCASE(ultrasonic_init(&sensor->sensor_obj.ultrasonic));
+            if (err != ESP_OK) break;
+
+            ESP_LOGI(TAG, "Initialized ULTRASONIC_WATER_LEVEL sensor '%s'", sensor->description);
             sensor->init_status = HYDRO_SENSOR_INIT_SUCCESS;
             break;
         default:
@@ -210,6 +242,12 @@ esp_err_t read_sensor(const char *TAG, hydro_sensor_t *sensor, hydro_data_t *out
     case SENSOR_MODEL_TSL2591:
         output_data->type = HYDRO_DATA_TYPE_LUX;
         err = tsl2591_get_lux(&sensor->sensor_obj.tsl2591, &output_data->data.lux.lux);
+        if (isnan(output_data->data.lux.lux))
+        {
+            ESP_LOGW(TAG, "TSL2591 returned NaN lux value");
+            output_data->data.lux.lux = 0.0; // Set to zero when NaN
+            err = ESP_ERR_INVALID_SIZE;
+        }
         break;
     case SENSOR_MODEL_GROVE_WATER_LEVEL:
         output_data->type = HYDRO_DATA_TYPE_WATER_LEVEL;
@@ -217,6 +255,31 @@ esp_err_t read_sensor(const char *TAG, hydro_sensor_t *sensor, hydro_data_t *out
             &sensor->sensor_obj.grove_water_level); // TODO fix this function to return value
         if (err != ESP_OK) break;
         output_data->data.water_level.water_level = sensor->sensor_obj.grove_water_level.water_level;
+        break;
+    case SENSOR_MODEL_ULTRASONIC_WATER_LEVEL:
+        output_data->type = HYDRO_DATA_TYPE_WATER_LEVEL;
+        // Ultrasonic sensor reading
+        float distance_m;
+        float distance_cm;
+        err = ultrasonic_measure(&sensor->sensor_obj.ultrasonic, 1, &distance_m);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Error reading ultrasonic sensor: %s", esp_err_to_name(err));
+            break;
+        }
+        distance_cm = distance_m * 100; // Convert meters to centimeters
+
+        ESP_LOGD(TAG, "Ultrasonic sensor distance: %.2f cm", distance_cm);
+        // Convert distance to water level in mm
+        if (distance_cm > HYDRO_ULTRASONIC_WATER_LEVEL_SENSOR_HEIGHT_CM)
+        {
+            output_data->data.water_level.water_level = 0; // No water detected
+        }
+        else
+        {
+            output_data->data.water_level.water_level =
+                (uint8_t)((HYDRO_ULTRASONIC_WATER_LEVEL_SENSOR_HEIGHT_CM - distance_cm) * 10.0);
+        }
         break;
     default:
         ESP_LOGE("read_sensor", "Unknown sensor model: %d", sensor->model);

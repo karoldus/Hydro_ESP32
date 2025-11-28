@@ -7,6 +7,9 @@
 #include <bme680.h>
 #include <bmp280.h>
 #include <tsl2591.h>
+#include <ultrasonic.h>
+
+// =========== SENSOR ===========
 
 typedef enum
 {
@@ -14,7 +17,8 @@ typedef enum
     SENSOR_MODEL_BME280,
     SENSOR_MODEL_BME680,
     SENSOR_MODEL_TSL2591,
-    SENSOR_MODEL_GROVE_WATER_LEVEL
+    SENSOR_MODEL_GROVE_WATER_LEVEL,
+    SENSOR_MODEL_ULTRASONIC_WATER_LEVEL,
 } hydro_sensor_model_t;
 
 static const char HYDRO_SENSOR_MODEL_STR[][32] = {
@@ -23,6 +27,7 @@ static const char HYDRO_SENSOR_MODEL_STR[][32] = {
     [SENSOR_MODEL_BME680] = "BME680",
     [SENSOR_MODEL_TSL2591] = "TSL2591",
     [SENSOR_MODEL_GROVE_WATER_LEVEL] = "GROVE_WATER_LEVEL",
+    [SENSOR_MODEL_ULTRASONIC_WATER_LEVEL] = "ULTRASONIC_WATER_LEVEL",
 };
 
 typedef enum
@@ -43,6 +48,7 @@ typedef struct
         bme680_t bme680;
         tsl2591_t tsl2591;
         grove_water_level_sensor_t grove_water_level;
+        ultrasonic_sensor_t ultrasonic;
     } sensor_obj;
     union
     {
@@ -58,6 +64,19 @@ typedef struct
     hydro_sensor_init_status_t init_status;
     char description[16]; // e.g. "inside up"
 } hydro_sensor_t;
+
+// =========== SENSORS GROUP ===========
+
+typedef struct
+{
+    hydro_sensor_t water_level_sensor; // e.g. ultrasonic or grove water level sensor
+    hydro_sensor_t inside_down_temp_hum_sensor;
+    hydro_sensor_t inside_up_temp_hum_sensor;
+    hydro_sensor_t outside_down_temp_hum_sensor;
+    hydro_sensor_t outside_down_lux_sensor;
+    hydro_sensor_t outside_up_temp_hum_sensor;
+    hydro_sensor_t outside_up_lux_sensor;
+} hydro_sensors_group_t;
 
 // =========== SENSOR DATA ===========
 
@@ -98,7 +117,7 @@ typedef struct
 
 typedef struct
 {
-    uint8_t water_level; // 0-100 %
+    uint8_t water_level; // in mm [max 100 mm]
 } hydro_data_water_level_t;
 
 typedef struct
@@ -118,7 +137,7 @@ typedef struct
 //========= PUBLIC FUNCTIONS =======
 //==================================
 
-esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t *sensors, size_t sensor_count);
+esp_err_t init_all_sensors(const char *TAG, hydro_sensor_t **sensors, size_t sensor_count);
 
 esp_err_t read_sensor(const char *TAG, hydro_sensor_t *sensor, hydro_data_t *output_data);
 
